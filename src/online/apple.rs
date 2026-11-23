@@ -44,6 +44,7 @@ pub fn resolve(url: &str) -> Result<Resolved> {
     Ok(Resolved {
         label: format!("Apple Music: {name}"),
         tracks,
+        collection: (label == "álbum").then(|| name.to_string()),
     })
 }
 
@@ -94,6 +95,7 @@ fn playlist(url: &str, country: &str) -> Result<Resolved> {
     Ok(Resolved {
         label: format!("Apple Music: {name}"),
         tracks,
+        collection: Some(name.to_string()),
     })
 }
 

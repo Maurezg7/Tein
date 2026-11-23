@@ -79,6 +79,7 @@ pub fn resolve_link(url: &str) -> Result<Resolved> {
     Ok(Resolved {
         label: "Video de YouTube".into(),
         tracks: vec![track],
+        collection: None,
     })
 }
 
@@ -97,15 +98,54 @@ fn video_id_from_url(url: &str) -> Option<String> {
 }
 
 fn playlist(list_id: &str) -> Result<Resolved> {
-    let body = json!({ "context": web_context(), "browseId": format!("VL{list_id}") });
-    let resp = net::post_json(
-        "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false",
-        &[("User-Agent", net::BROWSER_UA)],
-        &body,
-    )?;
+    const URL: &str = "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false";
+    let headers = [("User-Agent", net::BROWSER_UA)];
+    let first = json!({ "context": web_context(), "browseId": format!("VL{list_id}") });
+    let mut resp = net::post_json(URL, &headers, &first)?;
+    let title = resp["header"]["playlistHeaderRenderer"]["title"]["simpleText"]
+        .as_str()
+        .or(resp["metadata"]["playlistMetadataRenderer"]["title"].as_str())
+        .unwrap_or("Playlist de YouTube")
+        .to_string();
     let mut tracks = Vec::new();
-    collect(&resp, "playlistVideoRenderer", &mut |v| {
-        let Some(id) = v["videoId"].as_str() else {
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..MAX_PAGES {
+        playlist_items(&resp, &mut tracks, &mut seen);
+        let Some(token) = continuation(&resp) else {
+            break;
+        };
+        let next = json!({ "context": web_context(), "continuation": token });
+        match net::post_json(URL, &headers, &next) {
+            Ok(r) => resp = r,
+            Err(e) => {
+                log::warn!("youtube playlist paging: {e}");
+                break;
+            }
+        }
+    }
+    if tracks.is_empty() {
+        return Err("La playlist está vacía o es privada".into());
+    }
+    Ok(Resolved {
+        label: title.clone(),
+        tracks,
+        collection: Some(title),
+    })
+}
+
+/// Pages of ~100 videos; caps huge playlists at about 5000 tracks.
+const MAX_PAGES: usize = 50;
+
+fn playlist_items(
+    resp: &Value,
+    tracks: &mut Vec<OnlineTrack>,
+    seen: &mut std::collections::HashSet<String>,
+) {
+    collect(resp, "playlistVideoRenderer", &mut |v| {
+        let Some(id) = v["videoId"]
+            .as_str()
+            .filter(|id| seen.insert(id.to_string()))
+        else {
             return;
         };
         tracks.push(OnlineTrack {
@@ -119,11 +159,14 @@ fn playlist(list_id: &str) -> Result<Resolved> {
             origin: "YouTube",
         });
     });
-    collect(&resp, "lockupViewModel", &mut |v| {
+    collect(resp, "lockupViewModel", &mut |v| {
         if v["contentType"].as_str() != Some("LOCKUP_CONTENT_TYPE_VIDEO") {
             return;
         }
-        let Some(id) = v["contentId"].as_str() else {
+        let Some(id) = v["contentId"]
+            .as_str()
+            .filter(|id| seen.insert(id.to_string()))
+        else {
             return;
         };
         let meta = &v["metadata"]["lockupMetadataViewModel"];
@@ -145,17 +188,39 @@ fn playlist(list_id: &str) -> Result<Resolved> {
             origin: "YouTube",
         });
     });
-    let title = resp["header"]["playlistHeaderRenderer"]["title"]["simpleText"]
-        .as_str()
-        .or(resp["metadata"]["playlistMetadataRenderer"]["title"].as_str())
-        .unwrap_or("Playlist de YouTube");
-    if tracks.is_empty() {
-        return Err("La playlist está vacía o es privada".into());
+}
+
+/// Token of the "load more" entry that sits in the same list as the playlist videos.
+fn continuation(v: &Value) -> Option<String> {
+    match v {
+        Value::Array(items) => {
+            let is_video_list = items.iter().any(|i| {
+                i.get("lockupViewModel").is_some() || i.get("playlistVideoRenderer").is_some()
+            });
+            if is_video_list {
+                return items.iter().find_map(|i| {
+                    i.get("continuationItemViewModel")
+                        .or(i.get("continuationItemRenderer"))
+                        .and_then(continuation_token)
+                });
+            }
+            items.iter().find_map(continuation)
+        }
+        Value::Object(map) => map.values().find_map(continuation),
+        _ => None,
     }
-    Ok(Resolved {
-        label: title.to_string(),
-        tracks,
-    })
+}
+
+fn continuation_token(v: &Value) -> Option<String> {
+    match v {
+        Value::Object(map) => map
+            .get("continuationCommand")
+            .and_then(|c| c["token"].as_str())
+            .map(str::to_string)
+            .or_else(|| map.values().find_map(continuation_token)),
+        Value::Array(items) => items.iter().find_map(continuation_token),
+        _ => None,
+    }
 }
 
 const IOS_UA: &str =

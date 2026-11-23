@@ -1,10 +1,12 @@
 use crate::library::{self, Track};
-use crate::online::{self, OnlineTrack, Source, youtube};
+use crate::online::{self, OnlineTrack, youtube};
 use std::sync::mpsc::{Sender, channel};
 
 pub struct Job {
     pub id: u64,
     pub track: OnlineTrack,
+    /// Playlist/album name: saved in a subfolder with that name.
+    pub folder: Option<String>,
 }
 
 pub enum Update {
@@ -50,7 +52,11 @@ fn run(job: &Job, on_update: &dyn Fn(Update)) -> Result<Track, String> {
         })
     };
     let (artist, title) = clean_names(&job.track);
-    let dir = &crate::paths::get().download_dir;
+    let mut dir = crate::paths::get().download_dir.clone();
+    if let Some(folder) = &job.folder {
+        dir = dir.join(sanitize(folder));
+    }
+    let dir = &dir;
     std::fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
     let dest = dir.join(format!("{}.m4a", sanitize(&format!("{artist} - {title}"))));
     if dest.exists() {
@@ -76,10 +82,10 @@ fn run(job: &Job, on_update: &dyn Fn(Update)) -> Result<Track, String> {
     }
 
     status("Guardando etiquetas…", 1.0);
-    let album = match job.track.source {
-        Source::YouTube(_) if job.track.origin == "YouTube" => "YouTube".to_string(),
-        _ => job.track.origin.to_string(),
-    };
+    let album = job
+        .folder
+        .clone()
+        .unwrap_or_else(|| job.track.origin.to_string());
     if let Err(e) = library::write_tags(
         &part,
         &title,

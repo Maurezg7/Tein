@@ -1,6 +1,6 @@
 use super::{OnlineTrack, Resolved, Source, path_segments};
 use crate::net::{self, Result};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 pub fn is_link(s: &str) -> bool {
     s.contains("open.spotify.com/") || s.starts_with("spotify:")
@@ -48,7 +48,7 @@ pub fn resolve(input: &str) -> Result<Resolved> {
         .unwrap_or("Spotify")
         .to_string();
 
-    let tracks: Vec<OnlineTrack> = if kind == "track" {
+    let mut tracks: Vec<OnlineTrack> = if kind == "track" {
         let artists: Vec<&str> = entity["artists"]
             .as_array()
             .into_iter()
@@ -68,13 +68,82 @@ pub fn resolve(input: &str) -> Result<Resolved> {
             .filter(|t| !t.title.is_empty())
             .collect()
     };
+    if kind == "playlist" && tracks.len() >= EMBED_LIMIT {
+        let token = data["props"]["pageProps"]["state"]["settings"]["session"]["accessToken"]
+            .as_str()
+            .unwrap_or("");
+        if let Err(e) = more_playlist_tracks(&id, token, &mut tracks) {
+            log::warn!("spotify playlist paging: {e}");
+        }
+    }
     if tracks.is_empty() {
         return Err("No se encontraron canciones en ese link".into());
     }
     Ok(Resolved {
         label: format!("Spotify: {name}"),
         tracks,
+        collection: (kind != "track").then_some(name),
     })
+}
+
+const EMBED_LIMIT: usize = 100;
+const MAX_TRACKS: usize = 5000;
+const FETCH_PLAYLIST_HASH: &str =
+    "19ff1327c29e99c208c86d7a9d8f1929cfdf3d3202a0ff4253c821f1901aa94d";
+
+/// The embed page lists only the first 100 tracks; the rest come from the web player API.
+fn more_playlist_tracks(id: &str, token: &str, tracks: &mut Vec<OnlineTrack>) -> Result<()> {
+    if token.is_empty() {
+        return Err("sin token".into());
+    }
+    let auth = format!("Bearer {token}");
+    let ext = json!({ "persistedQuery": { "version": 1, "sha256Hash": FETCH_PLAYLIST_HASH } });
+    let mut offset = tracks.len();
+    let mut fetched = Vec::new();
+    while offset < MAX_TRACKS {
+        let vars =
+            json!({ "uri": format!("spotify:playlist:{id}"), "offset": offset, "limit": 100 });
+        let url = format!(
+            "https://api-partner.spotify.com/pathfinder/v1/query?operationName=fetchPlaylist&variables={}&extensions={}",
+            net::url_encode(&vars.to_string()),
+            net::url_encode(&ext.to_string())
+        );
+        let text = net::get_text_with(
+            &url,
+            &[("User-Agent", net::BROWSER_UA), ("Authorization", &auth)],
+        )?;
+        let resp: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        let content = &resp["data"]["playlistV2"]["content"];
+        let items = content["items"]
+            .as_array()
+            .ok_or("respuesta sin canciones")?;
+        if items.is_empty() {
+            break;
+        }
+        offset += items.len();
+        for item in items {
+            let t = &item["itemV2"]["data"];
+            let artists: Vec<&str> = t["artists"]["items"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|a| a["profile"]["name"].as_str())
+                .collect();
+            let name = t["name"].as_str().unwrap_or("");
+            if !name.is_empty() {
+                fetched.push(track(
+                    name,
+                    &artists.join(", "),
+                    &t["trackDuration"]["totalMilliseconds"],
+                ));
+            }
+        }
+        if offset >= content["totalCount"].as_u64().unwrap_or(0) as usize {
+            break;
+        }
+    }
+    tracks.extend(fetched);
+    Ok(())
 }
 
 fn track(title: &str, artist: &str, duration_ms: &Value) -> OnlineTrack {

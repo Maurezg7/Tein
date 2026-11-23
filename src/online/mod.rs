@@ -24,6 +24,8 @@ pub struct OnlineTrack {
 pub struct Resolved {
     pub label: String,
     pub tracks: Vec<OnlineTrack>,
+    /// Playlist or album name: its downloads go to a folder and a playlist with this name.
+    pub collection: Option<String>,
 }
 
 /// Resolves free text (search) or a YouTube / Spotify / Apple Music link.
@@ -50,6 +52,7 @@ pub fn resolve(input: &str) -> Result<Resolved> {
     Ok(Resolved {
         label: format!("Resultados para \"{input}\""),
         tracks,
+        collection: None,
     })
 }
 
@@ -147,5 +150,23 @@ mod tests {
             .unwrap();
         println!("{} ({} tracks)", r.label, r.tracks.len());
         assert!(r.tracks.len() > 5);
+    }
+
+    #[test]
+    #[ignore = "network"]
+    fn spotify_playlist_over_100() {
+        let r = resolve("https://open.spotify.com/playlist/37i9dQZF1DX4UtSsGT1Sbe").unwrap();
+        println!("{} ({} tracks)", r.label, r.tracks.len());
+        assert!(r.tracks.len() > 100);
+        assert!(r.collection.is_some());
+    }
+
+    #[test]
+    #[ignore = "network"]
+    fn youtube_playlist_over_100() {
+        let r = resolve("https://www.youtube.com/playlist?list=PLMC9KNkIncKtPzgY-5rmhvj7fax8fdxoj")
+            .unwrap();
+        println!("{} ({} tracks)", r.label, r.tracks.len());
+        assert!(r.tracks.len() > 100);
     }
 }

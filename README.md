@@ -67,6 +67,8 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Buscá en YouTube y bajá con un toque
 - Pegá links de videos o playlists de YouTube
 - Links de Spotify y Apple Music: canción, álbum o playlist
+- **Playlists completas** (también de más de 100 temas) con **Bajar todo**
+- Cada playlist se guarda en su carpeta `Música/Tein/<playlist>` y se crea como lista en la app
 - Archivos M4A con título, artista y portada
 - Se guardan en `Música/Tein` y aparecen solas en la biblioteca
 

@@ -18,11 +18,17 @@ pub fn agent() -> &'static ureq::Agent {
 }
 
 pub fn get_text(url: &str, ua: &str) -> Result<String> {
-    agent()
+    get_text_with(url, &[("User-Agent", ua)])
+}
+
+pub fn get_text_with(url: &str, headers: &[(&str, &str)]) -> Result<String> {
+    let mut req = agent()
         .get(url)
-        .header("User-Agent", ua)
-        .header("Accept-Language", "es-ES,es;q=0.9,en;q=0.8")
-        .call()
+        .header("Accept-Language", "es-ES,es;q=0.9,en;q=0.8");
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    req.call()
         .map_err(|e| format!("Error de red: {e}"))?
         .body_mut()
         .with_config()
@@ -66,6 +72,17 @@ pub fn post_json(
         .read_to_string()
         .map_err(|e| format!("Error leyendo respuesta: {e}"))?;
     serde_json::from_str(&text).map_err(|e| format!("JSON inválido: {e}"))
+}
+
+pub fn url_encode(s: &str) -> String {
+    s.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }
 
 /// Returns the value of `key` in the query string of `url`.

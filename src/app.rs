@@ -29,6 +29,7 @@ struct DownloadEntry {
     progress: f32,
     state: i32,
     online: Option<(u64, usize)>,
+    playlist: Option<String>,
 }
 
 #[derive(Default)]
@@ -41,6 +42,7 @@ struct Core {
     visible: Vec<Track>,
     group_keys: Vec<String>,
     online: Vec<(OnlineTrack, i32)>,
+    online_collection: Option<String>,
     search_gen: u64,
     downloads: Vec<DownloadEntry>,
     next_id: u64,
@@ -687,16 +689,26 @@ fn search(query: String) {
                 st.set_online_busy(false);
                 match result {
                     Ok(res) => {
-                        st.set_online_status(if res.tracks.is_empty() {
+                        let n = res.tracks.len();
+                        st.set_online_status(if n == 0 {
                             "Sin resultados".into()
+                        } else if res.collection.is_some() {
+                            format!(
+                                "{} · {n} {}",
+                                res.label,
+                                if n == 1 { "canción" } else { "canciones" }
+                            )
+                            .into()
                         } else {
                             res.label.into()
                         });
+                        core.online_collection = res.collection;
                         core.online = res.tracks.into_iter().map(|t| (t, 0)).collect();
                     }
                     Err(e) => {
                         st.set_online_status(format!("Error: {e}").into());
                         core.online.clear();
+                        core.online_collection = None;
                     }
                 }
                 refresh_online(ui, core);
@@ -733,6 +745,7 @@ fn enqueue_download(ui: &AppWindow, core: &mut Core, i: usize) {
     }
     *state = 1;
     let track = track.clone();
+    let folder = core.online_collection.clone();
     core.next_id += 1;
     let id = core.next_id;
     let (artist, title) = download::clean_names(&track);
@@ -747,11 +760,12 @@ fn enqueue_download(ui: &AppWindow, core: &mut Core, i: usize) {
             progress: 0.0,
             state: 0,
             online: Some((core.search_gen, i)),
+            playlist: folder.clone(),
         },
     );
     DOWNLOADER.with(|d| {
         if let Some(tx) = d.borrow().as_ref() {
-            let _ = tx.send(Job { id, track });
+            let _ = tx.send(Job { id, track, folder });
         }
     });
     refresh_online(ui, core);
@@ -778,6 +792,9 @@ fn on_download(ui: &AppWindow, core: &mut Core, update: Update) {
             entry.state = 2;
             entry.progress = 1.0;
             entry.status = format!("Listo · {}", track.path);
+            if let Some(name) = &entry.playlist {
+                add_to_playlist(&mut core.playlists, name, &track.path);
+            }
             if !core.library.iter().any(|t| t.path == track.path) {
                 core.library.push(track);
                 library::sort(&mut core.library);
@@ -804,6 +821,23 @@ fn on_download(ui: &AppWindow, core: &mut Core, update: Update) {
         refresh_library(ui, core);
     }
     refresh_downloads(ui, core);
+}
+
+fn add_to_playlist(playlists: &mut Vec<Playlist>, name: &str, path: &str) {
+    let idx = match playlists.iter().position(|p| p.name == name) {
+        Some(i) => i,
+        None => {
+            playlists.push(Playlist {
+                name: name.to_string(),
+                paths: Vec::new(),
+            });
+            playlists.len() - 1
+        }
+    };
+    if !playlists[idx].paths.iter().any(|p| p == path) {
+        playlists[idx].paths.push(path.to_string());
+        store::save_playlists(playlists);
+    }
 }
 
 fn refresh_downloads(ui: &AppWindow, core: &Core) {
