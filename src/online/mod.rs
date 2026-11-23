@@ -108,7 +108,7 @@ mod tests {
     fn youtube_full_download() {
         let r = resolve("daft punk get lucky").unwrap();
         let s = youtube::audio_stream(&video_id_for(&r.tracks[0]).unwrap()).unwrap();
-        let dest = std::env::temp_dir().join("ritmo-test.m4a");
+        let dest = std::env::temp_dir().join("tein-test.m4a");
         youtube::download(&s, &dest, &mut |_| {}).unwrap();
         assert_eq!(std::fs::metadata(&dest).unwrap().len(), s.size);
         let _ = std::fs::remove_file(dest);

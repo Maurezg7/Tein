@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds a signed Ritmo APK using only the Android SDK command-line tools (no Gradle).
+# Builds a signed Tein APK using only the Android SDK command-line tools (no Gradle).
 # Usage: ./build-apk.sh [abi ...]   (default: arm64-v8a x86_64)
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -15,8 +15,8 @@ read -r -a ABIS <<< "${ABIS[*]}"
 
 APP=android/app/src/main
 OUT=target/apk
-KEYSTORE="${RITMO_KEYSTORE:-android/ritmo-release.jks}"
-KS_PASS="${RITMO_KEYSTORE_PASSWORD:-ritmo123}"
+KEYSTORE="${TEIN_KEYSTORE:-android/tein-release.jks}"
+KS_PASS="${TEIN_KEYSTORE_PASSWORD:-tein123}"
 rm -rf "$OUT" && mkdir -p "$OUT"/{res,gen,classes,lib}
 
 echo "==> Rust (${ABIS[*]})"
@@ -28,7 +28,7 @@ else
     for abi in "${ABIS[@]}"; do
         mkdir -p "$OUT/lib/$abi"
         t=$(case $abi in arm64-v8a) echo aarch64-linux-android;; armeabi-v7a) echo armv7-linux-androideabi;; x86_64) echo x86_64-linux-android;; esac)
-        cp "target/$t/release/libritmo.so" "$OUT/lib/$abi/"
+        cp "target/$t/release/libtein.so" "$OUT/lib/$abi/"
     done
 fi
 
@@ -40,7 +40,7 @@ for abi in "${ABIS[@]}"; do
 done
 
 echo "==> Recursos"
-sed 's|<manifest |<manifest package="com.ritmo.app" |' "$APP/AndroidManifest.xml" > "$OUT/AndroidManifest.xml"
+sed 's|<manifest |<manifest package="com.tein.app" |' "$APP/AndroidManifest.xml" > "$OUT/AndroidManifest.xml"
 "$BT/aapt2" compile --dir "$APP/res" -o "$OUT/res.zip"
 "$BT/aapt2" link -o "$OUT/base.apk" -I "$PLATFORM_JAR" --manifest "$OUT/AndroidManifest.xml" \
     --java "$OUT/gen" --min-sdk-version 26 --target-sdk-version 34 \
@@ -59,9 +59,9 @@ cp "$OUT/base.apk" "$OUT/unaligned.apk"
 "$BT/zipalign" -f -p 4 "$OUT/unaligned.apk" "$OUT/aligned.apk"
 
 if [ ! -f "$KEYSTORE" ]; then
-    keytool -genkeypair -keystore "$KEYSTORE" -alias ritmo -keyalg RSA -keysize 2048 -validity 10000 \
-        -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=Ritmo" >/dev/null 2>&1
+    keytool -genkeypair -keystore "$KEYSTORE" -alias tein -keyalg RSA -keysize 2048 -validity 10000 \
+        -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=Tein" >/dev/null 2>&1
 fi
-"$BT/apksigner" sign --ks "$KEYSTORE" --ks-pass "pass:$KS_PASS" --ks-key-alias "${RITMO_KEY_ALIAS:-ritmo}" \
-    --out "$OUT/ritmo.apk" "$OUT/aligned.apk"
-ls -lh "$OUT/ritmo.apk"
+"$BT/apksigner" sign --ks "$KEYSTORE" --ks-pass "pass:$KS_PASS" --ks-key-alias "${TEIN_KEY_ALIAS:-tein}" \
+    --out "$OUT/tein.apk" "$OUT/aligned.apk"
+ls -lh "$OUT/tein.apk"

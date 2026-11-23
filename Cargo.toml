@@ -1,5 +1,5 @@
 [package]
-name = "ritmo"
+name = "tein"
 version = "0.1.0"
 edition = "2024"
 description = "Reproductor de música liviano para Android hecho en Rust"
@@ -9,7 +9,7 @@ license = "MIT"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "ritmo-desktop"
+name = "tein-desktop"
 path = "src/main.rs"
 
 [dependencies]

@@ -1,4 +1,4 @@
-# Ritmo
+# Tein
 
 Reproductor de música liviano para Android, escrito en Rust (UI con [Slint](https://slint.dev), audio con [Rodio](https://github.com/RustAudio/rodio)).
 
@@ -12,7 +12,7 @@ Reproductor de música liviano para Android, escrito en Rust (UI con [Slint](htt
 - Descargas desde YouTube (búsqueda o link de video/playlist) en M4A con título, artista y portada.
 - Links de Spotify y Apple Music (canción, álbum o playlist): se leen los datos públicos (título/artista) y se descarga el audio equivalente desde YouTube. Spotify y Apple Music usan DRM, así que su audio no se descarga directamente.
 
-Las descargas se guardan en `Música/Ritmo`.
+Las descargas se guardan en `Música/Tein`.
 
 ## Compilar
 
@@ -27,7 +27,7 @@ export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370
 ./build-apk.sh arm64-v8a       # solo celulares modernos (APK más chico)
 ```
 
-El APK queda en `target/apk/ritmo.apk`. Instalar con `adb install -r target/apk/ritmo.apk`.
+El APK queda en `target/apk/tein.apk`. Instalar con `adb install -r target/apk/tein.apk`.
 
 También se puede compilar con Gradle (`cd android && ./gradlew assembleRelease`).
 
@@ -38,7 +38,7 @@ También se puede compilar con Gradle (`cd android && ./gradlew assembleRelease`
 ## Desarrollo en PC
 
 ```bash
-cargo run --bin ritmo-desktop
+cargo run --bin tein-desktop
 cargo test --lib                       # tests offline
 cargo test --lib -- --include-ignored  # incluye tests de red
 ```

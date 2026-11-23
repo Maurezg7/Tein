@@ -22,7 +22,7 @@ fn android_main(app: slint::android::AndroidApp) {
     android_logger::init_once(
         android_logger::Config::default()
             .with_max_level(log::LevelFilter::Info)
-            .with_tag("ritmo"),
+            .with_tag("tein"),
     );
     paths::init_android(&app);
     slint::android::init(app).expect("Slint Android init");

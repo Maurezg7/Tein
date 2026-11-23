@@ -11,10 +11,10 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
     <application
-        android:label="Ritmo"
+        android:label="Tein"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:theme="@style/RitmoTheme"
+        android:theme="@style/TeinTheme"
         android:hasCode="true"
         android:requestLegacyExternalStorage="true"
         android:extractNativeLibs="false">
@@ -25,7 +25,7 @@
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|density"
             android:windowSoftInputMode="adjustResize">
-            <meta-data android:name="android.app.lib_name" android:value="ritmo" />
+            <meta-data android:name="android.app.lib_name" android:value="tein" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

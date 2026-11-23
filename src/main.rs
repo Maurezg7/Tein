@@ -1,3 +1,3 @@
 fn main() {
-    ritmo::run();
+    tein::run();
 }

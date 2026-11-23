@@ -1,4 +1,4 @@
-package com.ritmo.app;
+package com.tein.app;
 
 import android.Manifest;
 import android.app.NativeActivity;
@@ -13,7 +13,7 @@ import java.util.List;
 public class MainActivity extends NativeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        RitmoBridge.init(this);
+        TeinBridge.init(this);
         super.onCreate(savedInstanceState);
         requestNeededPermissions();
     }
@@ -37,7 +37,7 @@ public class MainActivity extends NativeActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        RitmoBridge.push(RitmoBridge.ACTION_RESCAN);
+        TeinBridge.push(TeinBridge.ACTION_RESCAN);
     }
 
     @Override
@@ -49,7 +49,7 @@ public class MainActivity extends NativeActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (isFinishing()) RitmoBridge.shutdown(this);
+        if (isFinishing()) TeinBridge.shutdown(this);
     }
 
     @Override

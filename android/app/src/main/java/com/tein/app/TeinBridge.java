@@ -1,4 +1,4 @@
-package com.ritmo.app;
+package com.tein.app;
 
 import android.content.Context;
 import android.content.Intent;
@@ -8,7 +8,7 @@ import android.os.Looper;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /** Static entry points called from Rust through JNI. */
-public final class RitmoBridge {
+public final class TeinBridge {
     public static final int ACTION_TOGGLE = 1;
     public static final int ACTION_NEXT = 2;
     public static final int ACTION_PREV = 3;
@@ -24,7 +24,7 @@ public final class RitmoBridge {
     static volatile String artist = "";
     static volatile boolean playing;
 
-    private RitmoBridge() {}
+    private TeinBridge() {}
 
     static void init(Context context) {
         app = context.getApplicationContext();
@@ -55,7 +55,7 @@ public final class RitmoBridge {
                 try {
                     c.startForegroundService(new Intent(c, PlaybackService.class));
                 } catch (RuntimeException e) {
-                    android.util.Log.w("ritmo", "No se pudo iniciar el servicio", e);
+                    android.util.Log.w("tein", "No se pudo iniciar el servicio", e);
                 }
             }
         });

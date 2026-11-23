@@ -1,4 +1,4 @@
-package com.ritmo.app;
+package com.tein.app;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -36,7 +36,7 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
     private final BroadcastReceiver noisy = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            RitmoBridge.push(RitmoBridge.ACTION_PAUSE);
+            TeinBridge.push(TeinBridge.ACTION_PAUSE);
         }
     };
 
@@ -58,13 +58,13 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
                 .setOnAudioFocusChangeListener(this)
                 .build();
 
-        session = new MediaSession(this, "Ritmo");
+        session = new MediaSession(this, "Tein");
         session.setCallback(new MediaSession.Callback() {
-            @Override public void onPlay() { RitmoBridge.push(RitmoBridge.ACTION_PLAY); }
-            @Override public void onPause() { RitmoBridge.push(RitmoBridge.ACTION_PAUSE); }
-            @Override public void onSkipToNext() { RitmoBridge.push(RitmoBridge.ACTION_NEXT); }
-            @Override public void onSkipToPrevious() { RitmoBridge.push(RitmoBridge.ACTION_PREV); }
-            @Override public void onStop() { RitmoBridge.push(RitmoBridge.ACTION_PAUSE); }
+            @Override public void onPlay() { TeinBridge.push(TeinBridge.ACTION_PLAY); }
+            @Override public void onPause() { TeinBridge.push(TeinBridge.ACTION_PAUSE); }
+            @Override public void onSkipToNext() { TeinBridge.push(TeinBridge.ACTION_NEXT); }
+            @Override public void onSkipToPrevious() { TeinBridge.push(TeinBridge.ACTION_PREV); }
+            @Override public void onStop() { TeinBridge.push(TeinBridge.ACTION_PAUSE); }
         });
         session.setSessionActivity(openApp());
         session.setActive(true);
@@ -74,15 +74,15 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         String action = intent != null ? intent.getAction() : null;
-        if ("toggle".equals(action)) RitmoBridge.push(RitmoBridge.ACTION_TOGGLE);
-        else if ("next".equals(action)) RitmoBridge.push(RitmoBridge.ACTION_NEXT);
-        else if ("prev".equals(action)) RitmoBridge.push(RitmoBridge.ACTION_PREV);
+        if ("toggle".equals(action)) TeinBridge.push(TeinBridge.ACTION_TOGGLE);
+        else if ("next".equals(action)) TeinBridge.push(TeinBridge.ACTION_NEXT);
+        else if ("prev".equals(action)) TeinBridge.push(TeinBridge.ACTION_PREV);
         refresh();
         return START_NOT_STICKY;
     }
 
     void refresh() {
-        boolean playing = RitmoBridge.playing;
+        boolean playing = TeinBridge.playing;
         if (playing) {
             pausedByFocusLoss = false;
             if (!hasFocus) hasFocus = audio.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
@@ -92,8 +92,8 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
         }
 
         session.setMetadata(new MediaMetadata.Builder()
-                .putString(MediaMetadata.METADATA_KEY_TITLE, RitmoBridge.title)
-                .putString(MediaMetadata.METADATA_KEY_ARTIST, RitmoBridge.artist)
+                .putString(MediaMetadata.METADATA_KEY_TITLE, TeinBridge.title)
+                .putString(MediaMetadata.METADATA_KEY_ARTIST, TeinBridge.artist)
                 .build());
         session.setPlaybackState(new PlaybackState.Builder()
                 .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE
@@ -104,8 +104,8 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
 
         Notification n = new Notification.Builder(this, CHANNEL)
                 .setSmallIcon(R.drawable.ic_note)
-                .setContentTitle(RitmoBridge.title)
-                .setContentText(RitmoBridge.artist)
+                .setContentTitle(TeinBridge.title)
+                .setContentText(TeinBridge.artist)
                 .setContentIntent(openApp())
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setOngoing(playing)
@@ -150,20 +150,20 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
         switch (change) {
             case AudioManager.AUDIOFOCUS_LOSS:
                 hasFocus = false;
-                RitmoBridge.push(RitmoBridge.ACTION_PAUSE);
+                TeinBridge.push(TeinBridge.ACTION_PAUSE);
                 break;
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                if (RitmoBridge.playing) {
+                if (TeinBridge.playing) {
                     pausedByFocusLoss = true;
-                    RitmoBridge.push(RitmoBridge.ACTION_PAUSE);
+                    TeinBridge.push(TeinBridge.ACTION_PAUSE);
                 }
                 break;
             case AudioManager.AUDIOFOCUS_GAIN:
                 hasFocus = true;
                 if (pausedByFocusLoss) {
                     pausedByFocusLoss = false;
-                    RitmoBridge.push(RitmoBridge.ACTION_PLAY);
+                    TeinBridge.push(TeinBridge.ACTION_PLAY);
                 }
                 break;
             default:
@@ -173,7 +173,7 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        RitmoBridge.shutdown(this);
+        TeinBridge.shutdown(this);
     }
 
     @Override

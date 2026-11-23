@@ -1,2 +1,2 @@
--keep class com.ritmo.app.** { *; }
+-keep class com.tein.app.** { *; }
 -keep class android.app.NativeActivity { *; }

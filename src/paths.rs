@@ -18,12 +18,12 @@ fn desktop_paths() -> Paths {
     let home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
-    let data_dir = home.join(".local/share/ritmo");
+    let data_dir = home.join(".local/share/tein");
     let music = home.join("Music");
     finish(
         data_dir.clone(),
         data_dir.join("cache"),
-        music.join("Ritmo"),
+        music.join("Tein"),
         vec![music],
     )
 }
@@ -32,9 +32,9 @@ fn desktop_paths() -> Paths {
 pub fn init_android(app: &slint::android::AndroidApp) {
     let internal = app
         .internal_data_path()
-        .unwrap_or_else(|| PathBuf::from("/data/local/tmp/ritmo"));
+        .unwrap_or_else(|| PathBuf::from("/data/local/tmp/tein"));
     let storage = PathBuf::from("/storage/emulated/0");
-    let mut download_dir = storage.join("Music/Ritmo");
+    let mut download_dir = storage.join("Music/Tein");
     if std::fs::create_dir_all(&download_dir).is_err() || !is_writable(&download_dir) {
         download_dir = app
             .external_data_path()
@@ -55,7 +55,7 @@ pub fn init_android(app: &slint::android::AndroidApp) {
 
 #[cfg(target_os = "android")]
 fn is_writable(dir: &std::path::Path) -> bool {
-    let probe = dir.join(".ritmo_probe");
+    let probe = dir.join(".tein_probe");
     let ok = std::fs::write(&probe, b"ok").is_ok();
     let _ = std::fs::remove_file(probe);
     ok

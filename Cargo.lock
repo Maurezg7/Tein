@@ -4223,24 +4223,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ritmo"
-version = "0.1.0"
-dependencies = [
- "android_logger",
- "fastrand",
- "jni 0.21.1",
- "lofty",
- "log",
- "ndk-context",
- "rodio",
- "serde",
- "serde_json",
- "slint",
- "slint-build",
- "ureq",
-]
-
-[[package]]
 name = "rodio"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5091,6 +5073,24 @@ name = "target-features"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1bbb9f3c5c463a01705937a24fdabc5047929ac764b2d5b9cf681c1f5041ed5"
+
+[[package]]
+name = "tein"
+version = "0.1.0"
+dependencies = [
+ "android_logger",
+ "fastrand",
+ "jni 0.21.1",
+ "lofty",
+ "log",
+ "ndk-context",
+ "rodio",
+ "serde",
+ "serde_json",
+ "slint",
+ "slint-build",
+ "ureq",
+]
 
 [[package]]
 name = "tempfile"

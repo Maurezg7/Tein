@@ -34,7 +34,7 @@ mod android {
                     &[],
                 )?
                 .l()?;
-            let name = env.new_string("com.ritmo.app.RitmoBridge")?;
+            let name = env.new_string("com.tein.app.TeinBridge")?;
             let class: JClass = env
                 .call_method(
                     &loader,

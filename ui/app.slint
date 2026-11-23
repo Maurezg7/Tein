@@ -334,7 +334,7 @@ component DownloadsPage inherits VerticalLayout {
     if State.downloads.length == 0: EmptyState {
         vertical-stretch: 1;
         icon: Icons.download;
-        text: "Las descargas aparecen acá. Se guardan en Música/Ritmo y se agregan solas a la biblioteca.";
+        text: "Las descargas aparecen acá. Se guardan en Música/Tein y se agregan solas a la biblioteca.";
     }
     if State.downloads.length > 0: ListView {
         vertical-stretch: 1;
@@ -747,7 +747,7 @@ export component AppWindow inherits Window {
     in-out property <bool> player-open: false;
     property <length> top-inset: self.safe-area-insets.top;
     property <length> bottom-inset: self.safe-area-insets.bottom;
-    title: "Ritmo";
+    title: "Tein";
     background: Palette.bg;
     preferred-width: 400px;
     preferred-height: 820px;
