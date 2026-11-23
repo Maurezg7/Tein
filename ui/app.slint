@@ -1,0 +1,852 @@
+import { LineEdit, ListView, Spinner } from "std-widgets.slint";
+import { Palette, Icons } from "theme.slint";
+import { Icon, IconButton, Chip, PillButton, Cover, Bar, ListRow } from "widgets.slint";
+
+export struct TrackItem { title: string, subtitle: string, trailing: string, playing: bool }
+export struct GroupItem { name: string, info: string }
+export struct OnlineItem { title: string, subtitle: string, state: int }
+export struct DownloadItem { title: string, status: string, progress: float, state: int }
+
+export global State {
+    // Library
+    in-out property <int> lib-view: 0;
+    in property <[TrackItem]> tracks;
+    in property <[GroupItem]> groups;
+    in property <string> group-title;
+    in property <string> library-status;
+    callback lib-filter(string);
+    callback lib-view-changed(int);
+    callback track-clicked(int);
+    callback track-menu(int);
+    callback group-clicked(int);
+    callback group-menu(int);
+    callback group-back();
+    callback play-all(bool);
+    callback rescan();
+    // Online search (state: 0 = available, 1 = queued, 2 = downloading, 3 = done, 4 = error)
+    in property <[OnlineItem]> online;
+    in property <string> online-status;
+    in property <bool> online-busy;
+    callback online-search(string);
+    callback online-download(int);
+    callback online-download-all();
+    // Downloads (state: 0 = waiting, 1 = running, 2 = done, 3 = error)
+    in property <[DownloadItem]> downloads;
+    in property <int> active-downloads;
+    callback clear-downloads();
+    // Player
+    in property <bool> has-current;
+    in property <string> now-title;
+    in property <string> now-artist;
+    in property <image> now-cover;
+    in property <bool> has-cover;
+    in property <bool> playing;
+    in property <float> position;
+    in property <float> duration;
+    in property <string> position-text: "0:00";
+    in property <string> duration-text: "0:00";
+    in property <bool> shuffle;
+    in property <int> repeat-mode;
+    in property <float> volume: 1;
+    in property <bool> current-fav;
+    in property <[TrackItem]> queue;
+    callback toggle-play();
+    callback next();
+    callback prev();
+    callback seek(float);
+    callback set-volume(float);
+    callback toggle-shuffle();
+    callback cycle-repeat();
+    callback toggle-fav();
+    callback current-menu();
+    callback queue-jump(int);
+    callback queue-remove(int);
+    // Sheets and dialogs
+    in-out property <bool> menu-open;
+    in property <string> menu-title;
+    in property <[string]> menu-options;
+    callback menu-action(int);
+    in-out property <bool> chooser-open;
+    in property <[string]> playlist-names;
+    callback choose-playlist(int);
+    in-out property <bool> name-dialog-open;
+    callback create-playlist(string);
+    in property <string> toast;
+}
+
+component Header inherits HorizontalLayout {
+    in property <string> title;
+    padding-left: 16px;
+    padding-right: 8px;
+    height: 56px;
+    Text {
+        text: root.title;
+        color: Palette.text;
+        font-size: 24px;
+        font-weight: 800;
+        vertical-alignment: center;
+    }
+}
+
+component EmptyState inherits VerticalLayout {
+    in property <string> icon;
+    in property <string> text;
+    alignment: center;
+    spacing: 12px;
+    padding: 32px;
+    Icon {
+        commands: root.icon;
+        size: 56px;
+        tint: Palette.muted;
+        x: (parent.width - self.width) / 2;
+    }
+    Text {
+        text: root.text;
+        color: Palette.muted;
+        font-size: 14px;
+        horizontal-alignment: center;
+        wrap: word-wrap;
+    }
+}
+
+component LibraryPage inherits VerticalLayout {
+    property <bool> showing-tracks: State.lib-view == 0 || State.group-title != "";
+    HorizontalLayout {
+        Header { title: "Biblioteca"; }
+        IconButton {
+            icon: Icons.refresh;
+            y: 6px;
+            clicked => { State.rescan(); }
+        }
+        Rectangle { width: 8px; }
+    }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        LineEdit {
+            placeholder-text: "Buscar en tu música";
+            edited(text) => { State.lib-filter(text); }
+        }
+    }
+    HorizontalLayout {
+        padding: 12px;
+        padding-left: 16px;
+        spacing: 8px;
+        alignment: start;
+        for name[i] in ["Canciones", "Artistas", "Álbumes", "Listas"]: Chip {
+            text: name;
+            active: State.lib-view == i;
+            clicked => {
+                State.lib-view = i;
+                State.lib-view-changed(i);
+            }
+        }
+    }
+    if State.group-title != "": HorizontalLayout {
+        padding-right: 16px;
+        height: 48px;
+        IconButton {
+            icon: Icons.back;
+            clicked => { State.group-back(); }
+        }
+        Text {
+            text: State.group-title;
+            color: Palette.text;
+            font-size: 17px;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+    if root.showing-tracks && State.tracks.length > 0: HorizontalLayout {
+        padding-left: 16px;
+        padding-bottom: 8px;
+        spacing: 8px;
+        alignment: start;
+        PillButton {
+            text: "Reproducir";
+            icon: Icons.play;
+            clicked => { State.play-all(false); }
+        }
+        PillButton {
+            text: "Aleatorio";
+            icon: Icons.shuffle;
+            primary: false;
+            clicked => { State.play-all(true); }
+        }
+        Text {
+            text: State.library-status;
+            color: Palette.muted;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+    }
+    if State.lib-view == 3 && State.group-title == "": HorizontalLayout {
+        padding-left: 16px;
+        padding-bottom: 8px;
+        alignment: start;
+        PillButton {
+            text: "Nueva lista";
+            icon: Icons.add;
+            clicked => { State.name-dialog-open = true; }
+        }
+    }
+    if root.showing-tracks && State.tracks.length == 0: EmptyState {
+        vertical-stretch: 1;
+        icon: Icons.library;
+        text: State.library-status != "" ? State.library-status : "No hay canciones todavía.\nBuscá y descargá música en la pestaña Buscar o copiá archivos a la carpeta Música.";
+    }
+    if root.showing-tracks && State.tracks.length > 0: ListView {
+        vertical-stretch: 1;
+        for item[i] in State.tracks: ListRow {
+            title: item.title;
+            subtitle: item.subtitle;
+            trailing: item.trailing;
+            highlighted: item.playing;
+            clicked => { State.track-clicked(i); }
+            more => { State.track-menu(i); }
+        }
+    }
+    if !root.showing-tracks: ListView {
+        vertical-stretch: 1;
+        for item[i] in State.groups: ListRow {
+            title: item.name;
+            subtitle: item.info;
+            icon: State.lib-view == 1 ? Icons.person : State.lib-view == 2 ? Icons.album : Icons.list;
+            show-more: State.lib-view == 3;
+            clicked => { State.group-clicked(i); }
+            more => { State.group-menu(i); }
+        }
+    }
+}
+
+component SearchPage inherits VerticalLayout {
+    Header { title: "Buscar"; }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 8px;
+        spacing: 4px;
+        input := LineEdit {
+            placeholder-text: "Canción, artista o link (YouTube, Spotify, Apple Music)";
+            accepted(text) => { State.online-search(text); }
+        }
+        IconButton {
+            icon: Icons.search;
+            filled: true;
+            clicked => { State.online-search(input.text); }
+        }
+    }
+    HorizontalLayout {
+        padding: 12px;
+        padding-left: 16px;
+        spacing: 10px;
+        height: 54px;
+        if State.online-busy: Spinner {
+            indeterminate: true;
+            width: 24px;
+            height: 24px;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: State.online-status;
+            color: Palette.muted;
+            font-size: 13px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        if State.online.length > 1: PillButton {
+            text: "Bajar todo";
+            icon: Icons.download;
+            horizontal-stretch: 0;
+            clicked => { State.online-download-all(); }
+        }
+    }
+    if State.online.length == 0: EmptyState {
+        vertical-stretch: 1;
+        icon: Icons.search;
+        text: "Buscá en YouTube o pegá un link de YouTube, Spotify o Apple Music (canción, álbum o playlist) para descargarlo.";
+    }
+    if State.online.length > 0: ListView {
+        vertical-stretch: 1;
+        for item[i] in State.online: Rectangle {
+            height: 64px;
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 8px;
+                spacing: 12px;
+                Cover {
+                    width: 46px;
+                    height: 46px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 6px;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 2px;
+                    Text {
+                        text: item.title;
+                        color: Palette.text;
+                        font-size: 15px;
+                        overflow: elide;
+                    }
+                    Text {
+                        text: item.subtitle;
+                        color: Palette.muted;
+                        font-size: 12px;
+                        overflow: elide;
+                    }
+                }
+                if item.state == 0 || item.state == 4: IconButton {
+                    icon: item.state == 4 ? Icons.refresh : Icons.download;
+                    tint: item.state == 4 ? Palette.danger : Palette.text;
+                    y: (parent.height - self.height) / 2;
+                    clicked => { State.online-download(i); }
+                }
+                if item.state == 1 || item.state == 2: Spinner {
+                    indeterminate: true;
+                    width: 28px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                }
+                if item.state == 3: Icon {
+                    commands: Icons.check;
+                    tint: Palette.ok;
+                    y: (parent.height - self.height) / 2;
+                }
+                Rectangle { width: 8px; }
+            }
+        }
+    }
+}
+
+component DownloadsPage inherits VerticalLayout {
+    HorizontalLayout {
+        Header { title: "Descargas"; }
+        if State.downloads.length > 0: PillButton {
+            text: "Limpiar";
+            primary: false;
+            y: 9px;
+            horizontal-stretch: 0;
+            clicked => { State.clear-downloads(); }
+        }
+        Rectangle { width: 16px; }
+    }
+    if State.downloads.length == 0: EmptyState {
+        vertical-stretch: 1;
+        icon: Icons.download;
+        text: "Las descargas aparecen acá. Se guardan en Música/Ritmo y se agregan solas a la biblioteca.";
+    }
+    if State.downloads.length > 0: ListView {
+        vertical-stretch: 1;
+        for item in State.downloads: Rectangle {
+            height: 68px;
+            VerticalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                alignment: center;
+                spacing: 4px;
+                Text {
+                    text: item.title;
+                    color: Palette.text;
+                    font-size: 15px;
+                    overflow: elide;
+                }
+                Text {
+                    text: item.status;
+                    color: item.state == 3 ? Palette.danger : item.state == 2 ? Palette.ok : Palette.muted;
+                    font-size: 12px;
+                    overflow: elide;
+                }
+                Rectangle {
+                    height: 3px;
+                    border-radius: 2px;
+                    background: #ffffff1a;
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * item.progress;
+                        background: item.state == 3 ? Palette.danger : Palette.accent;
+                        border-radius: 2px;
+                    }
+                }
+            }
+        }
+    }
+}
+
+component QueuePage inherits VerticalLayout {
+    Header { title: "Cola de reproducción"; }
+    if State.queue.length == 0: EmptyState {
+        vertical-stretch: 1;
+        icon: Icons.queue;
+        text: "La cola está vacía. Tocá una canción de tu biblioteca para empezar.";
+    }
+    if State.queue.length > 0: ListView {
+        vertical-stretch: 1;
+        for item[i] in State.queue: Rectangle {
+            height: 64px;
+            background: item.playing ? Palette.accent-soft : transparent;
+            ListRow {
+                title: item.title;
+                subtitle: item.subtitle;
+                highlighted: item.playing;
+                show-more: false;
+                clicked => { State.queue-jump(i); }
+            }
+            if !item.playing: IconButton {
+                x: parent.width - self.width - 8px;
+                icon: Icons.close;
+                tint: Palette.muted;
+                icon-size: 20px;
+                clicked => { State.queue-remove(i); }
+            }
+        }
+    }
+}
+
+component MiniPlayer inherits Rectangle {
+    callback open();
+    height: 66px;
+    background: Palette.surface-2;
+    TouchArea {
+        clicked => { root.open(); }
+    }
+    Rectangle {
+        x: 0;
+        y: 0;
+        height: 2px;
+        width: parent.width * (State.duration > 0 ? min(1, State.position / State.duration) : 0);
+        background: Palette.accent;
+    }
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 6px;
+        spacing: 12px;
+        Cover {
+            width: 46px;
+            height: 46px;
+            y: (parent.height - self.height) / 2;
+            source: State.now-cover;
+            has-image: State.has-cover;
+            border-radius: 6px;
+        }
+        VerticalLayout {
+            alignment: center;
+            Text {
+                text: State.now-title;
+                color: Palette.text;
+                font-size: 14px;
+                font-weight: 600;
+                overflow: elide;
+            }
+            Text {
+                text: State.now-artist;
+                color: Palette.muted;
+                font-size: 12px;
+                overflow: elide;
+            }
+        }
+        IconButton {
+            icon: State.playing ? Icons.pause : Icons.play;
+            y: (parent.height - self.height) / 2;
+            clicked => { State.toggle-play(); }
+        }
+        IconButton {
+            icon: Icons.next;
+            y: (parent.height - self.height) / 2;
+            clicked => { State.next(); }
+        }
+    }
+}
+
+component FullPlayer inherits Rectangle {
+    callback close();
+    in property <length> top-inset;
+    in property <length> bottom-inset;
+    background: @linear-gradient(180deg, Palette.accent.darker(55%) 0%, Palette.bg 70%);
+    TouchArea { }
+    VerticalLayout {
+        padding-top: root.top-inset + 8px;
+        padding-bottom: root.bottom-inset + 20px;
+        padding-left: 24px;
+        padding-right: 24px;
+        spacing: 12px;
+        HorizontalLayout {
+            IconButton {
+                icon: Icons.collapse;
+                icon-size: 30px;
+                clicked => { root.close(); }
+            }
+            Text {
+                text: "Reproduciendo";
+                color: Palette.muted;
+                font-size: 13px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            IconButton {
+                icon: Icons.more;
+                clicked => { State.current-menu(); }
+            }
+        }
+        Rectangle {
+            vertical-stretch: 1;
+            Cover {
+                width: min(parent.width, parent.height, 380px);
+                height: self.width;
+                source: State.now-cover;
+                has-image: State.has-cover;
+                border-radius: 14px;
+                drop-shadow-blur: 24px;
+                drop-shadow-color: #00000080;
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            VerticalLayout {
+                spacing: 4px;
+                Text {
+                    text: State.now-title;
+                    color: Palette.text;
+                    font-size: 22px;
+                    font-weight: 800;
+                    overflow: elide;
+                }
+                Text {
+                    text: State.now-artist;
+                    color: Palette.muted;
+                    font-size: 15px;
+                    overflow: elide;
+                }
+            }
+            IconButton {
+                icon: State.current-fav ? Icons.heart : Icons.heart-outline;
+                tint: State.current-fav ? Palette.accent.brighter(40%) : Palette.text;
+                y: (parent.height - self.height) / 2;
+                clicked => { State.toggle-fav(); }
+            }
+        }
+        VerticalLayout {
+            Bar {
+                value: State.position;
+                maximum: State.duration;
+                released(v) => { State.seek(v); }
+            }
+            HorizontalLayout {
+                Text {
+                    text: State.position-text;
+                    color: Palette.muted;
+                    font-size: 12px;
+                }
+                Text {
+                    text: State.duration-text;
+                    color: Palette.muted;
+                    font-size: 12px;
+                    horizontal-alignment: right;
+                }
+            }
+        }
+        HorizontalLayout {
+            alignment: space-between;
+            IconButton {
+                icon: Icons.shuffle;
+                tint: State.shuffle ? Palette.accent.brighter(40%) : Palette.muted;
+                y: (parent.height - self.height) / 2;
+                clicked => { State.toggle-shuffle(); }
+            }
+            IconButton {
+                icon: Icons.prev;
+                icon-size: 34px;
+                width: 56px;
+                height: 56px;
+                y: (parent.height - self.height) / 2;
+                clicked => { State.prev(); }
+            }
+            IconButton {
+                icon: State.playing ? Icons.pause : Icons.play;
+                icon-size: 38px;
+                filled: true;
+                width: 72px;
+                height: 72px;
+                clicked => { State.toggle-play(); }
+            }
+            IconButton {
+                icon: Icons.next;
+                icon-size: 34px;
+                width: 56px;
+                height: 56px;
+                y: (parent.height - self.height) / 2;
+                clicked => { State.next(); }
+            }
+            IconButton {
+                icon: State.repeat-mode == 2 ? Icons.repeat-one : Icons.repeat;
+                tint: State.repeat-mode > 0 ? Palette.accent.brighter(40%) : Palette.muted;
+                y: (parent.height - self.height) / 2;
+                clicked => { State.cycle-repeat(); }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Icon {
+                commands: Icons.volume;
+                tint: Palette.muted;
+                size: 20px;
+                y: (parent.height - self.height) / 2;
+            }
+            Bar {
+                value: State.volume;
+                maximum: 1;
+                fill: Palette.text;
+                released(v) => { State.set-volume(v); }
+            }
+        }
+    }
+}
+
+component Sheet inherits Rectangle {
+    in property <length> bottom-inset;
+    in property <string> title;
+    in property <[string]> options;
+    callback dismiss();
+    callback picked(int);
+    background: #000000a0;
+    TouchArea {
+        clicked => { root.dismiss(); }
+    }
+    Rectangle {
+        y: parent.height - self.height;
+        height: 60px + root.options.length * 52px + root.bottom-inset + 12px;
+        background: Palette.surface;
+        border-top-left-radius: 18px;
+        border-top-right-radius: 18px;
+        TouchArea { }
+        VerticalLayout {
+            padding-top: 8px;
+            padding-bottom: root.bottom-inset + 12px;
+            alignment: start;
+            Text {
+                height: 52px;
+                text: root.title;
+                color: Palette.muted;
+                font-size: 13px;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+                overflow: elide;
+            }
+            for opt[i] in root.options: Rectangle {
+                height: 52px;
+                background: ota.pressed ? #ffffff14 : transparent;
+                ota := TouchArea {
+                    clicked => { root.picked(i); }
+                }
+                Text {
+                    x: 24px;
+                    text: opt;
+                    color: Palette.text;
+                    font-size: 16px;
+                }
+            }
+        }
+    }
+}
+
+component NameDialog inherits Rectangle {
+    callback dismiss();
+    callback create(string);
+    background: #000000a0;
+    TouchArea {
+        clicked => { root.dismiss(); }
+    }
+    Rectangle {
+        width: min(parent.width - 48px, 360px);
+        height: 180px;
+        y: parent.height * 0.25;
+        background: Palette.surface;
+        border-radius: 16px;
+        TouchArea { }
+        VerticalLayout {
+            padding: 20px;
+            spacing: 14px;
+            Text {
+                text: "Nueva lista";
+                color: Palette.text;
+                font-size: 18px;
+                font-weight: 700;
+            }
+            name := LineEdit {
+                placeholder-text: "Nombre de la lista";
+                accepted(text) => { root.create(text); }
+            }
+            HorizontalLayout {
+                alignment: end;
+                spacing: 8px;
+                PillButton {
+                    text: "Cancelar";
+                    primary: false;
+                    clicked => { root.dismiss(); }
+                }
+                PillButton {
+                    text: "Crear";
+                    clicked => { root.create(name.text); }
+                }
+            }
+        }
+    }
+}
+
+component NavItem inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <bool> active;
+    in property <int> badge;
+    callback clicked();
+    TouchArea {
+        clicked => { root.clicked(); }
+    }
+    VerticalLayout {
+        alignment: center;
+        spacing: 2px;
+        Rectangle {
+            height: 28px;
+            Rectangle {
+                width: 56px;
+                height: 28px;
+                border-radius: 14px;
+                background: root.active ? Palette.accent-soft : transparent;
+            }
+            Icon {
+                commands: root.icon;
+                tint: root.active ? Palette.text : Palette.muted;
+            }
+            if root.badge > 0: Rectangle {
+                x: parent.width / 2 + 6px;
+                y: 0;
+                width: 18px;
+                height: 18px;
+                border-radius: 9px;
+                background: Palette.accent;
+                Text {
+                    text: root.badge;
+                    color: Palette.text;
+                    font-size: 10px;
+                    font-weight: 700;
+                }
+            }
+        }
+        Text {
+            text: root.label;
+            color: root.active ? Palette.text : Palette.muted;
+            font-size: 11px;
+            font-weight: root.active ? 700 : 400;
+            horizontal-alignment: center;
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    in-out property <int> current-tab: 0;
+    in-out property <bool> player-open: false;
+    property <length> top-inset: self.safe-area-insets.top;
+    property <length> bottom-inset: self.safe-area-insets.bottom;
+    title: "Ritmo";
+    background: Palette.bg;
+    preferred-width: 400px;
+    preferred-height: 820px;
+    default-font-size: 14px;
+
+    VerticalLayout {
+        padding-top: root.top-inset;
+        Rectangle {
+            vertical-stretch: 1;
+            if root.current-tab == 0: LibraryPage { }
+            if root.current-tab == 1: SearchPage { }
+            if root.current-tab == 2: DownloadsPage { }
+            if root.current-tab == 3: QueuePage { }
+        }
+        if State.has-current: MiniPlayer {
+            open => { root.player-open = true; }
+        }
+        Rectangle {
+            height: 64px + root.bottom-inset;
+            background: Palette.surface;
+            HorizontalLayout {
+                padding-bottom: root.bottom-inset;
+                NavItem {
+                    icon: Icons.library;
+                    label: "Biblioteca";
+                    active: root.current-tab == 0;
+                    clicked => { root.current-tab = 0; }
+                }
+                NavItem {
+                    icon: Icons.search;
+                    label: "Buscar";
+                    active: root.current-tab == 1;
+                    clicked => { root.current-tab = 1; }
+                }
+                NavItem {
+                    icon: Icons.download;
+                    label: "Descargas";
+                    active: root.current-tab == 2;
+                    badge: State.active-downloads;
+                    clicked => { root.current-tab = 2; }
+                }
+                NavItem {
+                    icon: Icons.queue;
+                    label: "Cola";
+                    active: root.current-tab == 3;
+                    clicked => { root.current-tab = 3; }
+                }
+            }
+        }
+    }
+
+    if root.player-open && State.has-current: FullPlayer {
+        top-inset: root.top-inset;
+        bottom-inset: root.bottom-inset;
+        close => { root.player-open = false; }
+    }
+
+    if State.menu-open: Sheet {
+        bottom-inset: root.bottom-inset;
+        title: State.menu-title;
+        options: State.menu-options;
+        dismiss => { State.menu-open = false; }
+        picked(i) => {
+            State.menu-open = false;
+            State.menu-action(i);
+        }
+    }
+
+    if State.chooser-open: Sheet {
+        bottom-inset: root.bottom-inset;
+        title: "Añadir a una lista";
+        options: State.playlist-names;
+        dismiss => { State.chooser-open = false; }
+        picked(i) => {
+            State.chooser-open = false;
+            State.choose-playlist(i);
+        }
+    }
+
+    if State.name-dialog-open: NameDialog {
+        dismiss => { State.name-dialog-open = false; }
+        create(name) => {
+            State.name-dialog-open = false;
+            State.create-playlist(name);
+        }
+    }
+
+    if State.toast != "": Rectangle {
+        y: parent.height - root.bottom-inset - 150px;
+        x: 24px;
+        width: parent.width - 48px;
+        height: 44px;
+        border-radius: 22px;
+        background: #2d2d38f0;
+        Text {
+            text: State.toast;
+            color: Palette.text;
+            font-size: 13px;
+            overflow: elide;
+        }
+    }
+}

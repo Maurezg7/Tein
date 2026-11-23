@@ -1,0 +1,2 @@
+-keep class com.ritmo.app.** { *; }
+-keep class android.app.NativeActivity { *; }
