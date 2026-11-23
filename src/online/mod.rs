@@ -32,6 +32,11 @@ pub fn resolve(input: &str) -> Result<Resolved> {
     if input.is_empty() {
         return Err("Escribí algo para buscar".into());
     }
+    let is_link = |w: &str| spotify::is_link(w) || apple::is_link(w) || youtube::is_link(w);
+    let input = input
+        .split_whitespace()
+        .find(|w| is_link(w))
+        .unwrap_or(input);
     if spotify::is_link(input) {
         return spotify::resolve(input);
     }

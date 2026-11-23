@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#17131f"/><stop offset="1" stop-color="#0f0f13"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.28" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.45"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a78bfa"/><stop offset="0.55" stop-color="#7c3aed"/><stop offset="1" stop-color="#4c1d95"/>
+    </linearGradient>
+    <linearGradient id="t" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c4b5fd"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="400" rx="32" fill="url(#bg)"/>
+  <rect width="1280" height="400" rx="32" fill="url(#glow)"/>
+  <g transform="translate(150,80) scale(2.2222)">
+    <rect width="108" height="108" rx="26" fill="url(#g)"/>
+    <path d="M28.0,29.0h0.0a4.5,4.5 0 0 1 4.5,4.5v5.0a4.5,4.5 0 0 1 -4.5,4.5h-0.0a4.5,4.5 0 0 1 -4.5,-4.5v-5.0a4.5,4.5 0 0 1 4.5,-4.5zM41.0,23.0h0.0a4.5,4.5 0 0 1 4.5,4.5v17.0a4.5,4.5 0 0 1 -4.5,4.5h-0.0a4.5,4.5 0 0 1 -4.5,-4.5v-17.0a4.5,4.5 0 0 1 4.5,-4.5zM67.0,23.0h0.0a4.5,4.5 0 0 1 4.5,4.5v17.0a4.5,4.5 0 0 1 -4.5,4.5h-0.0a4.5,4.5 0 0 1 -4.5,-4.5v-17.0a4.5,4.5 0 0 1 4.5,-4.5zM80.0,29.0h0.0a4.5,4.5 0 0 1 4.5,4.5v5.0a4.5,4.5 0 0 1 -4.5,4.5h-0.0a4.5,4.5 0 0 1 -4.5,-4.5v-5.0a4.5,4.5 0 0 1 4.5,-4.5zM27.5,32h53a4,4 0 0 1 4,4v0a4,4 0 0 1 -4,4h-53a4,4 0 0 1 -4,-4v-0a4,4 0 0 1 4,-4zM54.0,18h0.0a4.5,4.5 0 0 1 4.5,4.5v49.0a4.5,4.5 0 0 1 -4.5,4.5h-0.0a4.5,4.5 0 0 1 -4.5,-4.5v-49.0a4.5,4.5 0 0 1 4.5,-4.5zM34,77a11,11 0 1 1 22,0a11,11 0 1 1 -22,0z" fill="#ffffff"/>
+  </g>
+  <text x="460" y="225" font-family="Roboto, 'DejaVu Sans', Arial, sans-serif" font-weight="700" font-size="150" fill="url(#t)" letter-spacing="-3">Tein</text>
+  <text x="466" y="290" font-family="Roboto, 'DejaVu Sans', Arial, sans-serif" font-size="34" fill="#a1a1aa">Tu música, liviana y sin vueltas</text>
+  <g fill="#8b5cf6" opacity="0.55">
+    <rect x="1000" y="180.0" width="12" height="40" rx="6"/><rect x="1024" y="155.0" width="12" height="90" rx="6"/><rect x="1048" y="130.0" width="12" height="140" rx="6"/><rect x="1072" y="165.0" width="12" height="70" rx="6"/><rect x="1096" y="145.0" width="12" height="110" rx="6"/><rect x="1120" y="175.0" width="12" height="50" rx="6"/><rect x="1144" y="190.0" width="12" height="20" rx="6"/>
+  </g>
+</svg>
