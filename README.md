@@ -18,7 +18,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 ![Rust](https://img.shields.io/badge/Rust-2024-000000?style=flat-square&logo=rust&logoColor=white)
 ![Android](https://img.shields.io/badge/Android-8.0%20a%2015-3DDC84?style=flat-square&logo=android&logoColor=white)
 ![Slint](https://img.shields.io/badge/UI-Slint-2379F4?style=flat-square)
-![APK](https://img.shields.io/badge/APK-37%20MB-8b5cf6?style=flat-square)
+![APK](https://img.shields.io/badge/APK-38%20MB-8b5cf6?style=flat-square)
 ![Licencia](https://img.shields.io/badge/licencia-MIT-a78bfa?style=flat-square)
 
 </div>
@@ -29,10 +29,13 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 
 <div align="center">
   <img src="docs/screenshots/lib.png" width="19%" alt="Biblioteca">
-  <img src="docs/screenshots/artists.png" width="19%" alt="Artistas">
+  <img src="docs/screenshots/albums.png" width="19%" alt="Álbumes">
   <img src="docs/screenshots/search.png" width="19%" alt="Buscador">
   <img src="docs/screenshots/player.png" width="19%" alt="Reproductor">
   <img src="docs/screenshots/notification.png" width="19%" alt="Notificación">
+  <br><br>
+  <img src="docs/screenshots/tablet.png" width="78%" alt="Tablet">
+  <br><sub>En tablets: barra lateral y reproductor siempre visible al lado de tu música.</sub>
 </div>
 
 ## Funciones
@@ -42,6 +45,8 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 <td width="50%" valign="top">
 
 ### Reproductor
+- Interfaz adaptable: celulares chicos y grandes, tablets en vertical y horizontal
+- Colores del reproductor tomados de la portada
 - Play / pausa, anterior / siguiente y barra de progreso
 - Volumen, aleatorio y repetir (todo / una)
 - Cola editable: reproducir a continuación, agregar, quitar
@@ -56,7 +61,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Vistas por canciones, artistas, álbumes y listas
 - Buscador instantáneo en tu música
 - Favoritas y listas de reproducción propias
-- Portadas y etiquetas leídas de los archivos
+- Portadas en todas las listas y cuadrícula de álbumes, artistas y listas
 - **Completar datos y portada**: busca título, artista, álbum, año y portada y los guarda en el archivo (una canción o un artista/álbum/lista entero)
 
 </td>
@@ -79,7 +84,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 
 ### Liviana
 - Núcleo nativo en Rust, sin Electron ni WebView
-- APK de 37 MB (32 y 64 bits en uno) y arranque inmediato
+- APK de 38 MB (32 y 64 bits en uno) y arranque inmediato
 - Sin cuentas, sin anuncios, sin rastreo
 - Todo se guarda en el teléfono
 

@@ -1,6 +1,7 @@
 slint::include_modules!();
 
 mod app;
+mod art;
 mod download;
 mod library;
 mod meta;

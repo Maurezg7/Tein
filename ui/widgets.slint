@@ -15,15 +15,18 @@ export component IconButton inherits Rectangle {
     in property <length> icon-size: 24px;
     in property <color> tint: Palette.text;
     in property <bool> filled: false;
+    in property <color> fill: Palette.accent;
     callback clicked();
     width: 44px;
     height: 44px;
     border-radius: self.width / 2;
-    background: filled ? (ta.pressed ? Palette.accent.darker(20%) : Palette.accent) : (ta.pressed ? #ffffff1f : transparent);
+    background: filled ? (ta.pressed ? root.fill.darker(20%) : root.fill) : (ta.pressed ? #ffffff1f : transparent);
+    animate background { duration: 120ms; }
     Icon {
         commands: root.icon;
         tint: root.tint;
-        size: root.icon-size;
+        size: ta.pressed ? root.icon-size * 0.9 : root.icon-size;
+        animate size { duration: 120ms; }
     }
     ta := TouchArea {
         clicked => { root.clicked(); }
@@ -34,17 +37,18 @@ export component Chip inherits Rectangle {
     in property <string> text;
     in property <bool> active;
     callback clicked();
-    height: 34px;
-    border-radius: 17px;
-    background: active ? Palette.accent : (ta.pressed ? Palette.surface-2.brighter(20%) : Palette.surface-2);
+    height: 36px;
+    border-radius: 18px;
+    background: active ? Palette.text : (ta.pressed ? Palette.surface-3 : Palette.surface-2);
+    animate background { duration: 160ms; }
     HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
+        padding-left: 16px;
+        padding-right: 16px;
         Text {
             text: root.text;
-            color: Palette.text;
+            color: root.active ? Palette.bg : Palette.text;
             font-size: 13px;
-            font-weight: root.active ? 700 : 500;
+            font-weight: 600;
             vertical-alignment: center;
         }
     }
@@ -58,12 +62,13 @@ export component PillButton inherits Rectangle {
     in property <string> icon;
     in property <bool> primary: true;
     callback clicked();
-    height: 38px;
-    border-radius: 19px;
-    background: primary ? (ta.pressed ? Palette.accent.darker(20%) : Palette.accent) : (ta.pressed ? Palette.surface-2.brighter(20%) : Palette.surface-2);
+    height: 40px;
+    border-radius: 20px;
+    background: primary ? (ta.pressed ? Palette.accent.darker(20%) : Palette.accent) : (ta.pressed ? Palette.surface-3 : Palette.surface-2);
+    animate background { duration: 120ms; }
     HorizontalLayout {
         padding-left: 14px;
-        padding-right: 16px;
+        padding-right: 18px;
         spacing: 6px;
         alignment: center;
         if root.icon != "": Icon {
@@ -75,7 +80,7 @@ export component PillButton inherits Rectangle {
             text: root.text;
             color: Palette.text;
             font-size: 14px;
-            font-weight: 600;
+            font-weight: 700;
             vertical-alignment: center;
         }
     }
@@ -90,11 +95,11 @@ export component Cover inherits Rectangle {
     in property <string> icon: Icons.note;
     border-radius: 8px;
     clip: true;
-    background: @linear-gradient(135deg, Palette.accent.darker(30%) 0%, Palette.surface-2 100%);
+    background: @linear-gradient(135deg, Palette.accent.darker(25%) 0%, #2a1f45 60%, Palette.surface-2 100%);
     if !root.has-image: Icon {
         commands: root.icon;
-        size: root.width * 0.45;
-        tint: #ffffffb0;
+        size: min(root.width, root.height) * 0.42;
+        tint: #ffffffb8;
     }
     if root.has-image: Image {
         source: root.source;
@@ -104,10 +109,26 @@ export component Cover inherits Rectangle {
     }
 }
 
+/// Animated "now playing" bars.
+export component EqBars inherits Rectangle {
+    in property <bool> active;
+    in property <color> bar-color: Palette.accent.brighter(50%);
+    width: 18px;
+    height: 16px;
+    for phase[i] in [0, 110, 230]: Rectangle {
+        x: i * 6px;
+        width: 4px;
+        border-radius: 1px;
+        background: root.bar-color;
+        height: root.active ? 3px + 13px * abs(sin((animation-tick() / 1ms * 0.5 + phase) * 1deg)) : 4px;
+        y: root.height - self.height;
+    }
+}
+
 export component Bar inherits Rectangle {
     in property <float> value;
     in property <float> maximum: 1;
-    in property <color> fill: Palette.accent;
+    in property <color> fill: Palette.text;
     callback released(float);
     out property <bool> dragging: ta.pressed;
     property <float> drag-value;
@@ -116,24 +137,25 @@ export component Bar inherits Rectangle {
     height: 32px;
     Rectangle {
         y: (parent.height - self.height) / 2;
-        height: 4px;
-        border-radius: 2px;
+        height: ta.pressed ? 6px : 4px;
+        border-radius: self.height / 2;
         background: #ffffff2e;
     }
     Rectangle {
         x: 0;
         y: (parent.height - self.height) / 2;
         width: parent.width * root.frac;
-        height: 4px;
-        border-radius: 2px;
+        height: ta.pressed ? 6px : 4px;
+        border-radius: self.height / 2;
         background: root.fill;
     }
     Rectangle {
         x: parent.width * root.frac - self.width / 2;
-        width: ta.pressed ? 18px : 14px;
+        width: ta.pressed ? 18px : 12px;
         height: self.width;
         border-radius: self.width / 2;
         background: Palette.text;
+        animate width { duration: 100ms; }
     }
     ta := TouchArea {
         pointer-event(event) => {
@@ -150,37 +172,111 @@ export component Bar inherits Rectangle {
     }
 }
 
+export component SearchField inherits Rectangle {
+    in property <string> placeholder;
+    in-out property <string> text;
+    callback edited(string);
+    callback accepted(string);
+    height: 46px;
+    border-radius: 12px;
+    background: Palette.surface-2;
+    border-width: input.has-focus ? 1.5px : 0px;
+    border-color: Palette.accent;
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 4px;
+        spacing: 10px;
+        Icon {
+            commands: Icons.search;
+            tint: Palette.muted;
+            size: 20px;
+            y: (parent.height - self.height) / 2;
+        }
+        Rectangle {
+            if root.text == "": Text {
+                x: 0;
+                width: parent.width;
+                height: parent.height;
+                text: root.placeholder;
+                color: Palette.muted;
+                font-size: 15px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+            input := TextInput {
+                width: 100%;
+                height: 100%;
+                text <=> root.text;
+                color: Palette.text;
+                font-size: 15px;
+                single-line: true;
+                vertical-alignment: center;
+                selection-background-color: Palette.accent-soft;
+                edited => { root.edited(self.text); }
+                accepted => { root.accepted(self.text); }
+            }
+        }
+        if root.text != "": IconButton {
+            icon: Icons.close;
+            icon-size: 18px;
+            tint: Palette.muted;
+            width: 38px;
+            height: 38px;
+            y: (parent.height - self.height) / 2;
+            clicked => {
+                root.text = "";
+                root.edited("");
+            }
+        }
+    }
+}
+
 export component ListRow inherits Rectangle {
     in property <string> title;
     in property <string> subtitle;
     in property <string> trailing;
     in property <bool> highlighted;
+    in property <bool> animate-eq;
+    in property <image> art;
+    in property <bool> has-art;
     in property <string> icon: Icons.note;
     in property <bool> show-more: true;
+    in property <length> side-padding: 16px;
     callback clicked();
     callback more();
-    height: 64px;
+    height: 66px;
     background: ta.pressed ? #ffffff0f : transparent;
     ta := TouchArea {
         clicked => { root.clicked(); }
     }
     HorizontalLayout {
-        padding-left: 16px;
-        padding-right: 4px;
+        padding-left: root.side-padding;
+        padding-right: root.side-padding - 12px;
         spacing: 12px;
-        Cover {
-            width: 46px;
-            height: 46px;
+        Rectangle {
+            width: 50px;
+            height: 50px;
             y: (parent.height - self.height) / 2;
-            icon: root.icon;
-            border-radius: 6px;
+            Cover {
+                width: 100%;
+                height: 100%;
+                source: root.art;
+                has-image: root.has-art;
+                icon: root.icon;
+                border-radius: 6px;
+            }
+            if root.highlighted: Rectangle {
+                border-radius: 6px;
+                background: #00000088;
+                EqBars { active: root.animate-eq; }
+            }
         }
         VerticalLayout {
             alignment: center;
-            spacing: 2px;
+            spacing: 3px;
             Text {
                 text: root.title;
-                color: root.highlighted ? Palette.accent.brighter(40%) : Palette.text;
+                color: root.highlighted ? Palette.accent.brighter(50%) : Palette.text;
                 font-size: 15px;
                 font-weight: root.highlighted ? 700 : 500;
                 overflow: elide;
@@ -193,12 +289,13 @@ export component ListRow inherits Rectangle {
                 visible: root.subtitle != "";
             }
         }
-        Text {
+        if root.trailing != "": Text {
+            width: 52px;
             text: root.trailing;
             color: Palette.muted;
             font-size: 12px;
             vertical-alignment: center;
-            horizontal-stretch: 0;
+            horizontal-alignment: right;
         }
         if root.show-more: IconButton {
             icon: Icons.more;
@@ -207,6 +304,66 @@ export component ListRow inherits Rectangle {
             y: (parent.height - self.height) / 2;
             clicked => { root.more(); }
         }
-        if !root.show-more: Rectangle { width: 8px; }
+        if !root.show-more: Rectangle { width: 12px; }
+    }
+}
+
+/// Square (or round) cover card for album, artist and playlist grids.
+export component Card inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <image> art;
+    in property <bool> has-art;
+    in property <string> icon: Icons.album;
+    in property <bool> round;
+    in property <bool> show-more: true;
+    callback clicked();
+    callback more();
+    opacity: ta.pressed ? 0.75 : 1;
+    animate opacity { duration: 100ms; }
+    ta := TouchArea {
+        clicked => { root.clicked(); }
+    }
+    Cover {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.width;
+        source: root.art;
+        has-image: root.has-art;
+        icon: root.icon;
+        border-radius: root.round ? self.width / 2 : 10px;
+    }
+    if root.show-more: IconButton {
+        x: root.width - self.width - 4px;
+        y: root.width - self.height - 4px;
+        width: 36px;
+        height: 36px;
+        icon: Icons.more;
+        icon-size: 20px;
+        filled: true;
+        fill: #000000a0;
+        clicked => { root.more(); }
+    }
+    Text {
+        x: 0;
+        y: root.width + 8px;
+        width: root.width;
+        text: root.title;
+        color: Palette.text;
+        font-size: 14px;
+        font-weight: 600;
+        overflow: elide;
+        horizontal-alignment: root.round ? center : left;
+    }
+    Text {
+        x: 0;
+        y: root.width + 28px;
+        width: root.width;
+        text: root.subtitle;
+        color: Palette.muted;
+        font-size: 12px;
+        overflow: elide;
+        horizontal-alignment: root.round ? center : left;
     }
 }

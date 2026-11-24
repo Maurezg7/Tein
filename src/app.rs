@@ -1,3 +1,4 @@
+use crate::art;
 use crate::download::{self, Job, Update};
 use crate::library::{self, Track};
 use crate::online::{self, OnlineTrack};
@@ -54,6 +55,11 @@ struct Core {
     snapshot: Option<Snapshot>,
     toast_gen: u64,
     scanning: bool,
+    thumbs: std::collections::HashMap<String, (slint::Image, slint::Color)>,
+    thumb_tried: std::collections::HashSet<String>,
+    thumbs_busy: bool,
+    thumbs_again: bool,
+    web_thumbs: std::collections::HashMap<String, slint::Image>,
 }
 
 thread_local! {
@@ -200,20 +206,16 @@ fn bind(ui: &AppWindow) {
     });
     st.on_group_menu(|i| {
         with(|ui, core| {
-            let Some(key) = core.group_keys.get(i as usize).cloned() else {
-                return;
-            };
-            let mut actions = vec![
-                (MenuAction::PlayGroup, "Reproducir"),
-                (MenuAction::ShuffleGroup, "Reproducir aleatorio"),
-                (MenuAction::FillGroupMeta, "Completar datos y portadas"),
-            ];
-            if core.view == 3 && key != FAVORITES {
-                actions.push((MenuAction::DeleteList, "Eliminar lista"));
+            if let Some(key) = core.group_keys.get(i as usize).cloned() {
+                open_group_menu(ui, core, key);
             }
-            core.menu_group = Some(key.clone());
-            core.menu_track = None;
-            show_menu(ui, core, &key, actions);
+        })
+    });
+    st.on_current_group_menu(|| {
+        with(|ui, core| {
+            if let Some(key) = core.group.clone() {
+                open_group_menu(ui, core, key);
+            }
         })
     });
     st.on_menu_action(|i| with(|ui, core| menu_action(ui, core, i as usize)));
@@ -360,30 +362,46 @@ fn refresh_library(ui: &AppWindow, core: &mut Core) {
         _ => vec![],
     };
 
-    let mut groups: Vec<(String, String)> = vec![];
+    let mut groups: Vec<(String, String, Option<String>)> = vec![];
     if core.group.is_none() && core.view > 0 {
         if core.view == 3 {
             groups = core
                 .playlists
                 .iter()
                 .filter(|p| filter.is_empty() || p.name.to_lowercase().contains(&filter))
-                .map(|p| (p.name.clone(), format!("{} canciones", p.paths.len())))
+                .map(|p| {
+                    let art = p
+                        .paths
+                        .iter()
+                        .filter_map(|path| core.library.iter().find(|t| &t.path == path))
+                        .map(art::key)
+                        .find(|k| core.thumbs.contains_key(k));
+                    (p.name.clone(), format!("{} canciones", p.paths.len()), art)
+                })
                 .collect();
         } else {
-            let mut map: std::collections::BTreeMap<String, (String, usize)> = Default::default();
+            let mut map: std::collections::BTreeMap<String, (String, usize, Option<String>)> =
+                Default::default();
             for t in core.library.iter().filter(|t| matches(t)) {
                 let key = if core.view == 1 { &t.artist } else { &t.album };
                 let entry = map
                     .entry(key.to_lowercase())
-                    .or_insert_with(|| (key.clone(), 0));
+                    .or_insert_with(|| (key.clone(), 0, None));
                 entry.1 += 1;
+                if entry.2.is_none() {
+                    let k = art::key(t);
+                    if core.thumbs.contains_key(&k) {
+                        entry.2 = Some(k);
+                    }
+                }
             }
             groups = map
                 .into_values()
-                .map(|(k, n)| {
+                .map(|(k, n, art)| {
                     (
                         k,
                         format!("{n} {}", if n == 1 { "canción" } else { "canciones" }),
+                        art,
                     )
                 })
                 .collect();
@@ -398,19 +416,29 @@ fn refresh_library(ui: &AppWindow, core: &mut Core) {
                 subtitle: format!("{} · {}", t.artist, t.album).into(),
                 trailing: online::format_duration(t.duration_secs).into(),
                 playing: current.as_deref() == Some(t.path.as_str()),
+                art: art_of(core, t).0,
+                has_art: core.thumbs.contains_key(&art::key(t)),
             })
             .collect(),
     ));
     st.set_groups(model(
         groups
             .iter()
-            .map(|(n, i)| GroupItem {
-                name: n.clone().into(),
-                info: i.clone().into(),
+            .map(|(n, i, k)| {
+                let art = k.as_ref().and_then(|k| core.thumbs.get(k));
+                GroupItem {
+                    name: n.clone().into(),
+                    info: i.clone().into(),
+                    art: art.map(|a| a.0.clone()).unwrap_or_default(),
+                    has_art: art.is_some(),
+                }
             })
             .collect(),
     ));
     st.set_group_title(core.group.clone().unwrap_or_default().into());
+    let hero = tracks.iter().map(|t| art_of(core, t)).find(|a| a.1);
+    st.set_has_group_art(hero.is_some());
+    st.set_group_art(hero.map(|a| a.0).unwrap_or_default());
     let total: u32 = tracks.iter().map(|t| t.duration_secs).sum();
     let status = if core.scanning {
         "Buscando música…".to_string()
@@ -426,8 +454,153 @@ fn refresh_library(ui: &AppWindow, core: &mut Core) {
     };
     st.set_library_status(status.into());
     core.visible = tracks;
-    core.group_keys = groups.into_iter().map(|(n, _)| n).collect();
+    core.group_keys = groups.into_iter().map(|(n, _, _)| n).collect();
     refresh_fav(ui, core);
+    request_thumbs(core);
+}
+
+fn open_group_menu(ui: &AppWindow, core: &mut Core, key: String) {
+    let mut actions = vec![
+        (MenuAction::PlayGroup, "Reproducir"),
+        (MenuAction::ShuffleGroup, "Reproducir aleatorio"),
+        (MenuAction::FillGroupMeta, "Completar datos y portadas"),
+    ];
+    if core.view == 3 && key != FAVORITES {
+        actions.push((MenuAction::DeleteList, "Eliminar lista"));
+    }
+    core.menu_group = Some(key.clone());
+    core.menu_track = None;
+    show_menu(ui, core, &key, actions);
+}
+
+fn art_of(core: &Core, t: &Track) -> (slint::Image, bool) {
+    match core.thumbs.get(&art::key(t)) {
+        Some((img, _)) => (img.clone(), true),
+        None => (slint::Image::default(), false),
+    }
+}
+
+fn refresh_now_art(ui: &AppWindow, core: &Core) {
+    let tint = core
+        .snapshot
+        .as_ref()
+        .and_then(|s| s.current.as_ref())
+        .and_then(|t| core.thumbs.get(&art::key(t)))
+        .map(|a| a.1)
+        .unwrap_or(slint::Color::from_rgb_u8(0x3b, 0x26, 0x6e));
+    ui.global::<State>().set_now_tint(tint);
+}
+
+/// Builds missing cover thumbnails in the background, a few at a time.
+fn request_thumbs(core: &mut Core) {
+    if core.thumbs_busy {
+        core.thumbs_again = true;
+        return;
+    }
+    let mut want: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+    for t in &core.library {
+        let k = art::key(t);
+        if !core.thumbs.contains_key(&k) && !core.thumb_tried.contains(&k) {
+            want.entry(k).or_default().push(t.path.clone());
+        }
+    }
+    if want.is_empty() {
+        return;
+    }
+    core.thumbs_busy = true;
+    core.thumb_tried.extend(want.keys().cloned());
+    std::thread::spawn(move || {
+        let total = want.len();
+        let mut batch = vec![];
+        for (i, (k, paths)) in want.into_iter().enumerate() {
+            if let Some(t) = art::load(&k, &paths) {
+                let tint = art::tint(&t);
+                batch.push((k, t, tint));
+            }
+            if !batch.is_empty() && (batch.len() >= 24 || i + 1 == total) {
+                let ready = std::mem::take(&mut batch);
+                post(move |ui, core| {
+                    for (k, t, tint) in ready {
+                        core.thumbs.insert(k, (slint::Image::from_rgba8(t), tint));
+                    }
+                    refresh_now_art(ui, core);
+                    refresh_queue(ui, core);
+                    refresh_library(ui, core);
+                });
+            }
+        }
+        post(|_, core| {
+            core.thumbs_busy = false;
+            if std::mem::take(&mut core.thumbs_again) {
+                request_thumbs(core);
+            }
+        });
+    });
+}
+
+fn forget_art(core: &mut Core, key: &str) {
+    art::forget(key);
+    core.thumbs.remove(key);
+    core.thumb_tried.remove(key);
+}
+
+/// Fetches small YouTube previews for the online results.
+fn request_web_thumbs(core: &Core, generation: u64) {
+    let ids: Vec<String> = core
+        .online
+        .iter()
+        .filter_map(|(t, _)| match &t.source {
+            online::Source::YouTube(id) if !core.web_thumbs.contains_key(id) => Some(id.clone()),
+            _ => None,
+        })
+        .take(60)
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+    std::thread::spawn(move || {
+        for chunk in ids.chunks(6) {
+            let got: Vec<_> = chunk
+                .iter()
+                .filter_map(|id| {
+                    let url = format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg");
+                    let data = crate::net::get_bytes(&url, "Mozilla/5.0").ok()?;
+                    Some((id.clone(), art::from_bytes(&data)?))
+                })
+                .collect();
+            post(move |ui, core| {
+                for (id, t) in got {
+                    core.web_thumbs.insert(id, slint::Image::from_rgba8(t));
+                }
+                if core.search_gen == generation {
+                    refresh_online(ui, core);
+                }
+            });
+        }
+    });
+}
+
+fn refresh_queue(ui: &AppWindow, core: &Core) {
+    let Some(snap) = &core.snapshot else {
+        return;
+    };
+    let items = snap
+        .queue
+        .iter()
+        .enumerate()
+        .map(|(i, t)| {
+            let (art, has_art) = art_of(core, t);
+            TrackItem {
+                title: t.title.clone().into(),
+                subtitle: t.artist.clone().into(),
+                trailing: online::format_duration(t.duration_secs).into(),
+                playing: i == snap.index,
+                art,
+                has_art,
+            }
+        })
+        .collect();
+    ui.global::<State>().set_queue(model(items));
 }
 
 fn refresh_fav(ui: &AppWindow, core: &Core) {
@@ -629,8 +802,11 @@ fn fill_meta(ui: &AppWindow, core: &mut Core, tracks: Vec<Track>) {
                     post(move |ui, core| {
                         crate::player::forget_cover(&path);
                         if let Some(new) = library::read_track(std::path::Path::new(&path)) {
-                            if let Some(slot) = core.library.iter_mut().find(|x| x.path == path) {
-                                *slot = new;
+                            forget_art(core, &art::key(&new));
+                            if let Some(pos) = core.library.iter().position(|x| x.path == path) {
+                                let old = art::key(&core.library[pos]);
+                                forget_art(core, &old);
+                                core.library[pos] = new;
                             }
                             library::save_cache(&core.library);
                             refresh_library(ui, core);
@@ -704,6 +880,7 @@ fn on_player(ui: &AppWindow, core: &mut Core, event: Event) {
             if let Some(t) = &snap.current {
                 st.set_now_title(t.title.clone().into());
                 st.set_now_artist(t.artist.clone().into());
+                st.set_now_album(t.album.clone().into());
             }
             if changed_track {
                 let image = snap
@@ -717,20 +894,10 @@ fn on_player(ui: &AppWindow, core: &mut Core, event: Event) {
             st.set_shuffle(snap.shuffle);
             st.set_repeat_mode(snap.repeat as i32);
             st.set_volume(snap.volume);
-            st.set_queue(model(
-                snap.queue
-                    .iter()
-                    .enumerate()
-                    .map(|(i, t)| TrackItem {
-                        title: t.title.clone().into(),
-                        subtitle: t.artist.clone().into(),
-                        trailing: online::format_duration(t.duration_secs).into(),
-                        playing: i == snap.index,
-                    })
-                    .collect(),
-            ));
             core.snapshot = Some(snap);
+            refresh_queue(ui, core);
             if changed_track {
+                refresh_now_art(ui, core);
                 refresh_library(ui, core);
             }
         }
@@ -780,6 +947,7 @@ fn search(query: String) {
                         });
                         core.online_collection = res.collection;
                         core.online = res.tracks.into_iter().map(|t| (t, 0)).collect();
+                        request_web_thumbs(core, generation);
                     }
                     Err(e) => {
                         st.set_online_status(format!("Error: {e}").into());
@@ -798,6 +966,11 @@ fn refresh_online(ui: &AppWindow, core: &Core) {
         .online
         .iter()
         .map(|(t, state)| OnlineItem {
+            art: match &t.source {
+                online::Source::YouTube(id) => core.web_thumbs.get(id).cloned().unwrap_or_default(),
+                online::Source::Match => Default::default(),
+            },
+            has_art: matches!(&t.source, online::Source::YouTube(id) if core.web_thumbs.contains_key(id)),
             title: t.title.clone().into(),
             subtitle: format!(
                 "{} · {} · {}",
