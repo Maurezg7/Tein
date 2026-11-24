@@ -24,6 +24,7 @@ fn android_main(app: slint::android::AndroidApp) {
             .with_max_level(log::LevelFilter::Info)
             .with_tag("tein"),
     );
+    std::panic::set_hook(Box::new(|info| log::error!("panic: {info}")));
     paths::init_android(&app);
     slint::android::init(app).expect("Slint Android init");
     run();

@@ -616,7 +616,10 @@ fn on_player(ui: &AppWindow, core: &mut Core, event: Event) {
             st.set_duration_text(online::format_duration(dur as u32).into());
         }
         Event::Error(e) => toast(ui, core, e),
-        Event::Rescan => rescan(),
+        // Core is borrowed here; rescan borrows it again, so defer it.
+        Event::Rescan => {
+            let _ = slint::invoke_from_event_loop(rescan);
+        }
         Event::Changed(snap) => {
             let changed_track = core
                 .snapshot
