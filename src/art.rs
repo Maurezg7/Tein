@@ -5,17 +5,12 @@ use image::imageops::FilterType;
 use slint::{Rgba8Pixel, SharedPixelBuffer};
 use std::path::PathBuf;
 
-const SIZE: u32 = 160;
+const SIZE: u32 = 112;
 
 pub type Thumb = SharedPixelBuffer<Rgba8Pixel>;
 
-/// Tracks of the same album share one thumbnail.
 pub fn key(t: &Track) -> String {
-    if t.album.is_empty() || t.album == "Sin álbum" {
-        t.path.clone()
-    } else {
-        format!("{}\u{1}{}", t.artist.to_lowercase(), t.album.to_lowercase())
-    }
+    format!("{}\0{}", t.path, t.mtime)
 }
 
 fn file(key: &str, ext: &str) -> PathBuf {
@@ -28,30 +23,15 @@ fn file(key: &str, ext: &str) -> PathBuf {
         .join(format!("{:x}.{ext}", h.finish()))
 }
 
-/// Loads the cached thumbnail or builds it from the first file with a cover.
-pub fn load(key: &str, paths: &[String]) -> Option<Thumb> {
+pub fn load(key: &str, path: &str) -> Option<Thumb> {
     let jpg = file(key, "jpg");
     if let Ok(img) = image::open(&jpg) {
         return Some(buffer(img.to_rgba8()));
     }
-    // Remember how many files had no cover so they are not re-read on every start.
-    let none = file(key, "none");
-    let tried: usize = std::fs::read_to_string(&none)
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(0);
-    if tried >= paths.len() {
-        return None;
-    }
-    let img = paths
-        .iter()
-        .filter_map(|p| crate::library::cover(p))
-        .find_map(|data| image::load_from_memory(&data).ok());
-    let Some(img) = img else {
-        let _ = std::fs::create_dir_all(none.parent()?);
-        let _ = std::fs::write(&none, paths.len().to_string());
-        return None;
-    };
+    let img = crate::player::cached_cover(path)
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| image::load_from_memory(&b).ok())
+        .or_else(|| image::load_from_memory(&crate::library::cover(path)?).ok())?;
     let small = img.resize_to_fill(SIZE, SIZE, FilterType::Triangle);
     let _ = std::fs::create_dir_all(jpg.parent()?);
     let _ = small
@@ -76,9 +56,7 @@ pub fn from_bytes(data: &[u8]) -> Option<Thumb> {
 }
 
 pub fn forget(key: &str) {
-    for ext in ["jpg", "none"] {
-        let _ = std::fs::remove_file(file(key, ext));
-    }
+    let _ = std::fs::remove_file(file(key, "jpg"));
 }
 
 fn buffer(img: image::RgbaImage) -> Thumb {

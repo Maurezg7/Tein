@@ -1,4 +1,4 @@
-import { ListView, Spinner } from "std-widgets.slint";
+import { LineEdit, ListView, Spinner } from "std-widgets.slint";
 import { Palette, Icons } from "theme.slint";
 import { Icon, IconButton, Chip, PillButton, Cover, Bar, ListRow, Card, SearchField, EqBars } from "widgets.slint";
 
@@ -67,12 +67,18 @@ export global State {
     callback toggle-fav();
     callback current-menu();
     callback queue-jump(int);
-    callback queue-remove(int);
+    callback queue-menu(int);
     // Sheets and dialogs
     in-out property <bool> menu-open;
     in property <string> menu-title;
     in property <[string]> menu-options;
     callback menu-action(int);
+    in-out property <bool> edit-open;
+    in property <bool> edit-saving;
+    in-out property <string> edit-title;
+    in-out property <string> edit-artist;
+    in-out property <string> edit-album;
+    callback save-edit();
     in-out property <bool> chooser-open;
     in property <[string]> playlist-names;
     callback choose-playlist(int);
@@ -192,7 +198,7 @@ component LibraryPage inherits VerticalLayout {
     }
     if !root.in-group: Flickable {
         height: 60px;
-        viewport-width: chips.preferred-width;
+        content-width: chips.preferred-width;
         chips := HorizontalLayout {
             padding-top: 12px;
             padding-bottom: 12px;
@@ -353,7 +359,7 @@ component LibraryPage inherits VerticalLayout {
         property <int> cols: max(2, floor((self.width - 2 * root.pad + gap) / (root.wide ? 200px : 160px)));
         property <length> cw: (self.width - 2 * root.pad - (cols - 1) * gap) / cols;
         property <length> ch: cw + 60px;
-        viewport-height: ceil(State.groups.length / cols) * (ch + gap) + 24px;
+        content-height: ceil(State.groups.length / cols) * (ch + gap) + 24px;
         for item[i] in State.groups: Card {
             x: root.pad + mod(i, parent.cols) * (parent.cw + parent.gap);
             y: 4px + floor(i / parent.cols) * (parent.ch + parent.gap);
@@ -610,17 +616,9 @@ component QueuePage inherits VerticalLayout {
                 animate-eq: item.playing && State.playing;
                 art: item.art;
                 has-art: item.has-art;
-                show-more: false;
+                more => { State.queue-menu(i); }
                 side-padding: root.pad;
                 clicked => { State.queue-jump(i); }
-            }
-            if !item.playing: IconButton {
-                x: parent.width - self.width - root.pad + 8px;
-                y: (parent.height - self.height) / 2;
-                icon: Icons.close;
-                tint: Palette.muted;
-                icon-size: 20px;
-                clicked => { State.queue-remove(i); }
             }
         }
     }
@@ -911,6 +909,9 @@ component NowPanel inherits Rectangle {
     in property <length> bottom-inset;
     background: @linear-gradient(180deg, State.now-tint 0%, Palette.surface 65%);
     VerticalLayout {
+        x: 0;
+        width: parent.width;
+        height: parent.height;
         padding: 20px;
         padding-top: root.top-inset + 12px;
         padding-bottom: root.bottom-inset + 12px;
@@ -965,7 +966,7 @@ component NowPanel inherits Rectangle {
                 animate-eq: item.playing && State.playing;
                 art: item.art;
                 has-art: item.has-art;
-                show-more: false;
+                more => { State.queue-menu(i); }
                 side-padding: 0px;
                 clicked => { State.queue-jump(i); }
             }
@@ -999,7 +1000,6 @@ component Sheet inherits Rectangle {
         VerticalLayout {
             padding-top: 10px;
             padding-bottom: root.wide ? 12px : root.bottom-inset + 12px;
-            alignment: start;
             if !root.wide: Rectangle {
                 height: 6px;
                 Rectangle {
@@ -1023,10 +1023,9 @@ component Sheet inherits Rectangle {
                 height: 1px;
                 background: Palette.stroke;
             }
-            Flickable {
-                viewport-height: root.options.length * 54px;
+            ListView {
+                vertical-stretch: 1;
                 for opt[i] in root.options: Rectangle {
-                    y: i * 54px;
                     height: 54px;
                     background: ota.pressed ? #ffffff14 : transparent;
                     ota := TouchArea {
@@ -1038,6 +1037,7 @@ component Sheet inherits Rectangle {
                         text: opt;
                         color: Palette.text;
                         font-size: 16px;
+                        vertical-alignment: center;
                         overflow: elide;
                     }
                 }
@@ -1166,6 +1166,9 @@ export component AppWindow inherits Window {
     default-font-size: 14px;
 
     HorizontalLayout {
+        x: 0;
+        width: parent.width;
+        height: parent.height;
         padding-left: root.left-inset;
         padding-right: root.right-inset;
         if root.wide: Rectangle {
@@ -1279,6 +1282,42 @@ export component AppWindow inherits Window {
         create(name) => {
             State.name-dialog-open = false;
             State.create-playlist(name);
+        }
+    }
+
+    if State.edit-open: Rectangle {
+        background: #000000b0;
+        TouchArea { }
+        Rectangle {
+            width: min(parent.width - 24px, 440px);
+            height: min(330px, parent.height - root.top-inset - root.bottom-inset);
+            background: Palette.surface;
+            border-radius: 16px;
+            VerticalLayout {
+                padding: 16px;
+                spacing: 8px;
+                Text { text: "Editar canción"; font-size: 20px; color: Palette.text; }
+                Flickable {
+                    vertical-stretch: 1;
+                    content-height: fields.preferred-height;
+                    fields := VerticalLayout {
+                        width: parent.width;
+                        spacing: 4px;
+                        Text { text: "Título"; color: Palette.muted; }
+                        LineEdit { text <=> State.edit-title; enabled: !State.edit-saving; }
+                        Text { text: "Artista"; color: Palette.muted; }
+                        LineEdit { text <=> State.edit-artist; enabled: !State.edit-saving; }
+                        Text { text: "Álbum"; color: Palette.muted; }
+                        LineEdit { text <=> State.edit-album; enabled: !State.edit-saving; }
+                    }
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+                    PillButton { text: "Cancelar"; primary: false; clicked => { if !State.edit-saving { State.edit-open = false; } } }
+                    PillButton { text: State.edit-saving ? "Guardando…" : "Guardar"; clicked => { State.save-edit(); } }
+                }
+            }
         }
     }
 

@@ -28,6 +28,7 @@ fn android_main(app: slint::android::AndroidApp) {
     );
     std::panic::set_hook(Box::new(|info| log::error!("panic: {info}")));
     paths::init_android(&app);
+    platform::init_bridge();
     slint::android::init(app).expect("Slint Android init");
     run();
 }

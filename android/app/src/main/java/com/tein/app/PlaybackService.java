@@ -18,6 +18,7 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 /** Keeps the process alive while music plays and exposes media controls. */
 public class PlaybackService extends Service implements AudioManager.OnAudioFocusChangeListener {
@@ -32,6 +33,7 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
     private boolean hasFocus;
     private boolean pausedByFocusLoss;
     private boolean foreground;
+    private PowerManager.WakeLock wakeLock;
 
     private final BroadcastReceiver noisy = new BroadcastReceiver() {
         @Override
@@ -50,6 +52,9 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
         nm.createNotificationChannel(ch);
 
         audio = getSystemService(AudioManager.class);
+        wakeLock = getSystemService(PowerManager.class).newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK, "Tein:Playback");
+        wakeLock.setReferenceCounted(false);
         focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                 .setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -65,6 +70,7 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
             @Override public void onSkipToNext() { TeinBridge.push(TeinBridge.ACTION_NEXT); }
             @Override public void onSkipToPrevious() { TeinBridge.push(TeinBridge.ACTION_PREV); }
             @Override public void onStop() { TeinBridge.push(TeinBridge.ACTION_PAUSE); }
+            @Override public void onSeekTo(long positionMs) { TeinBridge.seek(positionMs); }
         });
         session.setSessionActivity(openApp());
         session.setActive(true);
@@ -83,6 +89,8 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
 
     void refresh() {
         boolean playing = TeinBridge.playing;
+        if (playing && !wakeLock.isHeld()) wakeLock.acquire();
+        if (!playing && wakeLock.isHeld()) wakeLock.release();
         if (playing) {
             pausedByFocusLoss = false;
             if (!hasFocus) hasFocus = audio.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
@@ -94,12 +102,14 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
         session.setMetadata(new MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, TeinBridge.title)
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, TeinBridge.artist)
+                .putLong(MediaMetadata.METADATA_KEY_DURATION, TeinBridge.durationMs)
                 .build());
         session.setPlaybackState(new PlaybackState.Builder()
                 .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE
-                        | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
+                        | PlaybackState.ACTION_SKIP_TO_NEXT | PlaybackState.ACTION_SKIP_TO_PREVIOUS
+                        | (TeinBridge.durationMs > 0 ? PlaybackState.ACTION_SEEK_TO : 0))
                 .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
-                        PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
+                        TeinBridge.positionMs, playing ? 1f : 0f)
                 .build());
 
         Notification n = new Notification.Builder(this, CHANNEL)
@@ -173,12 +183,13 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        TeinBridge.shutdown(this);
+        if (!TeinBridge.playing) stopSelf();
     }
 
     @Override
     public void onDestroy() {
         instance = null;
+        if (wakeLock.isHeld()) wakeLock.release();
         unregisterReceiver(noisy);
         if (hasFocus) audio.abandonAudioFocusRequest(focusRequest);
         session.release();

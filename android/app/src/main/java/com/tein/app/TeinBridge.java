@@ -16,13 +16,15 @@ public final class TeinBridge {
     public static final int ACTION_PLAY = 5;
     public static final int ACTION_RESCAN = 10;
 
-    private static final ConcurrentLinkedQueue<Integer> ACTIONS = new ConcurrentLinkedQueue<>();
+    private static final ConcurrentLinkedQueue<Long> ACTIONS = new ConcurrentLinkedQueue<>();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static Context app;
 
     static volatile String title = "";
     static volatile String artist = "";
     static volatile boolean playing;
+    static long positionMs;
+    static long durationMs;
 
     private TeinBridge() {}
 
@@ -31,19 +33,25 @@ public final class TeinBridge {
     }
 
     static void push(int action) {
-        ACTIONS.add(action);
+        ACTIONS.add((long) action);
     }
 
-    public static int poll() {
-        Integer a = ACTIONS.poll();
+    static void seek(long ms) {
+        ACTIONS.add(-1L - Math.max(0L, Math.min(ms, durationMs)));
+    }
+
+    public static long poll() {
+        Long a = ACTIONS.poll();
         return a == null ? 0 : a;
     }
 
-    public static void update(String newTitle, String newArtist, boolean isPlaying) {
-        title = newTitle;
-        artist = newArtist;
-        playing = isPlaying;
+    public static void update(String newTitle, String newArtist, boolean isPlaying, long pos, long duration) {
         MAIN.post(() -> {
+            title = newTitle;
+            artist = newArtist;
+            playing = isPlaying;
+            positionMs = pos;
+            durationMs = duration;
             Context c = app;
             if (c == null) return;
             PlaybackService service = PlaybackService.instance;
@@ -85,8 +93,4 @@ public final class TeinBridge {
         });
     }
 
-    static void shutdown(Context c) {
-        c.stopService(new Intent(c, PlaybackService.class));
-        android.os.Process.killProcess(android.os.Process.myPid());
-    }
 }

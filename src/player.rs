@@ -17,6 +17,8 @@ pub enum Cmd {
     Jump(usize),
     Remove(usize),
     Forget(String),
+    Refresh(Track),
+    Snapshot,
 }
 
 #[derive(Clone)]
@@ -99,7 +101,11 @@ impl Engine {
                 Err(RecvTimeoutError::Disconnected) => return,
             }
             while let Some(action) = platform::poll_action() {
-                match action {
+                if let Some(pos) = platform::seek_seconds(action) {
+                    self.seek(pos);
+                    continue;
+                }
+                match action as i32 {
                     platform::ACTION_TOGGLE => self.handle(Cmd::Toggle),
                     platform::ACTION_NEXT => self.handle(Cmd::Next),
                     platform::ACTION_PREV => self.handle(Cmd::Prev),
@@ -188,21 +194,8 @@ impl Engine {
                 self.repeat = (self.repeat + 1) % 3;
                 self.changed();
             }
-            Cmd::Enqueue(track) => {
-                self.original.push(track.clone());
-                self.queue.push(track);
-                self.changed();
-            }
-            Cmd::PlayNext(track) => {
-                self.original.push(track.clone());
-                let at = if self.queue.is_empty() {
-                    0
-                } else {
-                    self.index + 1
-                };
-                self.queue.insert(at, track);
-                self.changed();
-            }
+            Cmd::Enqueue(track) => self.enqueue(track, false),
+            Cmd::PlayNext(track) => self.enqueue(track, true),
             Cmd::Jump(i) if i < self.queue.len() => {
                 self.index = i;
                 self.start_playing(0);
@@ -222,6 +215,8 @@ impl Engine {
                 if playing_it {
                     self.sink = None;
                     self.playing = false;
+                    self.cover = None;
+                    self.duration = 0.0;
                 }
                 let current = self.queue.get(self.index).map(|t| t.path.clone());
                 self.queue.retain(|t| t.path != path);
@@ -229,10 +224,45 @@ impl Engine {
                 self.index = current
                     .and_then(|c| self.queue.iter().position(|t| t.path == c))
                     .unwrap_or(self.index.min(self.queue.len().saturating_sub(1)));
+                if playing_it && !self.queue.is_empty() {
+                    self.cover = cover_file(&self.queue[self.index].path);
+                    self.duration = self.queue[self.index].duration_secs as f32;
+                }
                 self.changed();
             }
+            Cmd::Refresh(track) => {
+                for t in self.queue.iter_mut().chain(self.original.iter_mut()) {
+                    if t.path == track.path {
+                        *t = track.clone();
+                    }
+                }
+                if self
+                    .queue
+                    .get(self.index)
+                    .is_some_and(|t| t.path == track.path)
+                {
+                    self.cover = cover_file(&track.path);
+                }
+                self.changed();
+            }
+            Cmd::Snapshot => self.changed(),
             Cmd::Jump(_) | Cmd::Remove(_) => {}
         }
+    }
+
+    fn enqueue(&mut self, track: Track, next: bool) {
+        let at = if self.queue.is_empty() {
+            self.cover = cover_file(&track.path);
+            self.duration = track.duration_secs as f32;
+            0
+        } else if next {
+            self.index + 1
+        } else {
+            self.queue.len()
+        };
+        self.original.push(track.clone());
+        self.queue.insert(at, track);
+        self.changed();
     }
 
     fn shuffle_rest(&mut self) {
@@ -246,10 +276,35 @@ impl Engine {
     }
 
     fn seek(&mut self, secs: f32) {
-        if let Some(sink) = &self.sink {
-            if let Err(e) = sink.try_seek(Duration::from_secs_f32(secs.max(0.0))) {
-                log::warn!("seek failed: {e}");
+        if self.sink.is_none() {
+            // A queued (or finished) track can be scrubbed before pressing Play.
+            let Some(track) = self.queue.get(self.index).cloned() else {
+                return;
+            };
+            match self.open(&track) {
+                Ok((sink, duration)) => {
+                    sink.pause();
+                    self.sink = Some(sink);
+                    self.duration = duration;
+                }
+                Err(e) => {
+                    (self.on_event)(Event::Error(e));
+                    return;
+                }
             }
+        }
+        if let Some(sink) = &self.sink {
+            if !secs.is_finite() || self.duration <= 0.0 {
+                return;
+            }
+            let secs = secs.clamp(0.0, self.duration);
+            if let Err(e) = sink.try_seek(Duration::from_secs_f32(secs)) {
+                log::warn!("seek failed: {e}");
+                (self.on_event)(Event::Error("No se pudo avanzar en este archivo".into()));
+                self.publish_media();
+                return;
+            }
+            self.publish_media();
             (self.on_event)(Event::Tick {
                 pos: secs,
                 dur: self.duration,
@@ -341,15 +396,32 @@ impl Engine {
         Ok((sink, dur))
     }
 
+    fn publish_media(&self) {
+        if let Some(t) = self.queue.get(self.index) {
+            platform::now_playing(
+                &t.title,
+                &t.artist,
+                self.playing,
+                (self.position() * 1000.0) as i64,
+                (self.duration * 1000.0) as i64,
+            );
+        } else {
+            platform::now_playing("", "", false, 0, 0);
+        }
+    }
+
     fn changed(&self) {
         let current = self
             .queue
             .get(self.index)
             .cloned()
             .filter(|_| self.sink.is_some() || !self.queue.is_empty());
-        match &current {
-            Some(t) => platform::now_playing(&t.title, &t.artist, self.playing),
-            None => platform::now_playing("", "", false),
+        self.publish_media();
+        if self.sink.is_none() {
+            (self.on_event)(Event::Tick {
+                pos: 0.0,
+                dur: self.duration,
+            });
         }
         crate::store::save_settings(&crate::store::Settings {
             volume: self.volume,
@@ -387,12 +459,22 @@ pub fn forget_cover(path: &str) {
 }
 
 /// Extracts the embedded cover to the cache so the UI can load it by path.
-fn cover_file(path: &str) -> Option<String> {
+pub(crate) fn cached_cover(path: &str) -> Option<std::path::PathBuf> {
+    let source_time = std::fs::metadata(path).and_then(|m| m.modified()).ok();
     for ext in ["jpg", "png"] {
         let f = cover_cache(path, ext);
-        if f.exists() {
-            return Some(f.to_string_lossy().to_string());
+        if let Ok(time) = std::fs::metadata(&f).and_then(|m| m.modified()) {
+            if source_time.is_none_or(|t| time >= t) {
+                return Some(f);
+            }
         }
+    }
+    None
+}
+
+fn cover_file(path: &str) -> Option<String> {
+    if let Some(f) = cached_cover(path) {
+        return Some(f.to_string_lossy().into_owned());
     }
     let data = crate::library::cover(path)?;
     let ext = if data.starts_with(b"\x89PNG") {

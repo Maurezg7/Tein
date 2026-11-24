@@ -18,7 +18,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 ![Rust](https://img.shields.io/badge/Rust-2024-000000?style=flat-square&logo=rust&logoColor=white)
 ![Android](https://img.shields.io/badge/Android-8.0%20a%2015-3DDC84?style=flat-square&logo=android&logoColor=white)
 ![Slint](https://img.shields.io/badge/UI-Slint-2379F4?style=flat-square)
-![APK](https://img.shields.io/badge/APK-38%20MB-8b5cf6?style=flat-square)
+![APK](https://img.shields.io/badge/APK-40%20MB-8b5cf6?style=flat-square)
 ![Licencia](https://img.shields.io/badge/licencia-MIT-a78bfa?style=flat-square)
 
 </div>
@@ -50,7 +50,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Play / pausa, anterior / siguiente y barra de progreso
 - Volumen, aleatorio y repetir (todo / una)
 - Cola editable: reproducir a continuación, agregar, quitar
-- Segundo plano con notificación y pantalla de bloqueo
+- Segundo plano con controles en la notificación y la pantalla de bloqueo. En Android 10 o superior, expandí el control multimedia y arrastrá la barra para saltar a otro segundo (la presentación depende del teléfono).
 - Controles de auriculares y pausa al desconectarlos
 
 </td>
@@ -61,6 +61,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Vistas por canciones, artistas, álbumes y listas
 - Buscador instantáneo en tu música
 - Favoritas y listas de reproducción propias
+- Menú **⋮** en la biblioteca, la cola y el reproductor: editá título, artista y álbum sin perder la portada, o elegí **Eliminar archivo…** y confirmá. **Quitar de la cola** no borra el archivo.
 - Portadas en todas las listas y cuadrícula de álbumes, artistas y listas
 - **Completar datos y portada**: busca título, artista, álbum, año y portada y los guarda en el archivo (una canción o un artista/álbum/lista entero)
 
@@ -84,7 +85,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 
 ### Liviana
 - Núcleo nativo en Rust, sin Electron ni WebView
-- APK de 38 MB (32 y 64 bits en uno) y arranque inmediato
+- APK de 40 MB con las versiones ARM de 32 y 64 bits
 - Sin cuentas, sin anuncios, sin rastreo
 - Todo se guarda en el teléfono
 
@@ -96,7 +97,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 
 ### Completar datos y portadas
 
-Tocá **⋮** en una canción (o mantené un artista, álbum o lista) y elegí **Completar datos y portada**. Tein usa el nombre del archivo o las etiquetas que ya tenga, limpia cosas como "(Official Video)" y busca en:
+Tocá **⋮** en una canción, artista, álbum o lista y elegí la opción para completar los datos y la portada. Tein usa el nombre del archivo o las etiquetas que ya tenga, limpia cosas como "(Official Video)" y busca en:
 
 | Fuente | Qué aporta | Clave |
 |---|---|---|
@@ -107,7 +108,7 @@ Tocá **⋮** en una canción (o mantené un artista, álbum o lista) y elegí *
 
 El reconocimiento por sonido se usa cuando el nombre no alcanza (por ejemplo `audio_123.mp3`). Se activa compilando con una clave gratuita de AcoustID: `ACOUSTID_KEY=tu_clave ./build-apk.sh`.
 
-En Android 11 o superior, para modificar canciones que no bajó Tein, la app abre el permiso **Acceso a todos los archivos** la primera vez. Activalo y volvé a tocar **Completar datos y portada**.
+En Android 11 o superior, si Android impide editar o borrar un archivo de otra app, Tein abre **Acceso a todos los archivos**. Si decidís habilitarlo, volvé a Tein y repetí la operación.
 
 ## Instalación
 

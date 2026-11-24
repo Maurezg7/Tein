@@ -51,7 +51,7 @@ sed 's|<manifest |<manifest package="com.tein.app" |' "$APP/AndroidManifest.xml"
 "$BT/aapt2" compile --dir "$APP/res" -o "$OUT/res.zip"
 "$BT/aapt2" link -o "$OUT/base.apk" -I "$PLATFORM_JAR" --manifest "$OUT/AndroidManifest.xml" \
     --java "$OUT/gen" --min-sdk-version 26 --target-sdk-version 34 \
-    --version-code 1 --version-name 0.1.0 "$OUT/res.zip"
+    --version-code 2 --version-name 1.0.1 "$OUT/res.zip"
 
 echo "==> Java"
 javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$PLATFORM_JAR:$BT/core-lambda-stubs.jar" \

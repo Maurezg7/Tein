@@ -99,7 +99,7 @@ fn mtime(path: &Path) -> u64 {
         .and_then(|m| m.modified())
         .ok()
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_secs())
+        .map(|d| d.as_nanos() as u64)
         .unwrap_or(0)
 }
 
@@ -145,10 +145,12 @@ pub fn read_track(path: &Path) -> Option<Track> {
 /// Embedded cover art of a file, if any.
 pub fn cover(path: &str) -> Option<Vec<u8>> {
     let tagged = lofty::read_from_path(path).ok()?;
-    tagged
-        .tags()
-        .iter()
-        .find_map(|t| t.pictures().first().map(|p| p.data().to_vec()))
+    let mut pictures = tagged.tags().iter().flat_map(|t| t.pictures());
+    pictures
+        .clone()
+        .find(|p| p.pic_type() == lofty::picture::PictureType::CoverFront)
+        .or_else(|| pictures.next())
+        .map(|p| p.data().to_vec())
 }
 
 /// Writes title, artist, album and cover into a downloaded file.
@@ -174,40 +176,98 @@ pub fn write_tags_full(
     meta: &crate::meta::Meta,
     cover: Option<Vec<u8>>,
 ) -> Result<(), String> {
-    use lofty::config::WriteOptions;
     use lofty::picture::{MimeType, Picture, PictureType};
+    update_tag(path, |tag| {
+        tag.set_title(meta.title.clone());
+        tag.set_artist(meta.artist.clone());
+        if !meta.album.is_empty() {
+            tag.set_album(meta.album.clone());
+        }
+        if let Some(year) = meta.year {
+            tag.set_date(lofty::tag::items::Timestamp {
+                year,
+                ..Default::default()
+            });
+        }
+        if let Some(data) = cover {
+            let mime = if data.starts_with(b"\x89PNG") {
+                MimeType::Png
+            } else {
+                MimeType::Jpeg
+            };
+            tag.remove_picture_type(PictureType::CoverFront);
+            tag.push_picture(
+                Picture::unchecked(data)
+                    .pic_type(PictureType::CoverFront)
+                    .mime_type(mime)
+                    .build(),
+            );
+        }
+    })
+}
+
+pub fn edit_tags(path: &Path, title: &str, artist: &str, album: &str) -> Result<(), String> {
+    if title.trim().is_empty() {
+        return Err("Escribí un título".into());
+    }
+    update_tag(path, |tag| {
+        tag.set_title(title.trim().into());
+        if artist.trim().is_empty() {
+            tag.remove_artist()
+        } else {
+            tag.set_artist(artist.trim().into())
+        }
+        if album.trim().is_empty() {
+            tag.remove_album()
+        } else {
+            tag.set_album(album.trim().into())
+        }
+    })
+}
+
+fn update_tag(path: &Path, edit: impl FnOnce(&mut lofty::tag::Tag)) -> Result<(), String> {
     use lofty::tag::Tag;
     let mut tagged = lofty::read_from_path(path).map_err(|e| e.to_string())?;
     if tagged.primary_tag().is_none() {
-        let kind = tagged.primary_tag_type();
-        tagged.insert_tag(Tag::new(kind));
+        tagged.insert_tag(Tag::new(tagged.primary_tag_type()));
     }
     let tag = tagged.primary_tag_mut().ok_or("sin etiquetas")?;
-    tag.set_title(meta.title.clone());
-    tag.set_artist(meta.artist.clone());
-    if !meta.album.is_empty() {
-        tag.set_album(meta.album.clone());
-    }
-    if let Some(year) = meta.year {
-        tag.set_date(lofty::tag::items::Timestamp {
-            year,
-            ..Default::default()
-        });
-    }
-    if let Some(data) = cover {
-        let mime = if data.starts_with(b"\x89PNG") {
-            MimeType::Png
-        } else {
-            MimeType::Jpeg
-        };
-        tag.remove_picture_type(PictureType::CoverFront);
-        tag.push_picture(
-            Picture::unchecked(data)
-                .pic_type(PictureType::CoverFront)
-                .mime_type(mime)
-                .build(),
-        );
-    }
-    tag.save_to_path(path, WriteOptions::default())
+    edit(tag);
+    tag.save_to_path(path, lofty::config::WriteOptions::default())
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn editing_round_trips_and_keeps_art_after_a_thumbnail_miss() {
+        let path = std::env::temp_dir().join(format!("tein-{}.wav", fastrand::u64(..)));
+        let mut wav = b"RIFF\x26\0\0\0WAVEfmt \x10\0\0\0\x01\0\x01\0".to_vec();
+        wav.extend_from_slice(&8000u32.to_le_bytes());
+        wav.extend_from_slice(&16000u32.to_le_bytes());
+        wav.extend_from_slice(b"\x02\0\x10\0data\x02\0\0\0\0\0");
+        std::fs::write(&path, wav).unwrap();
+        let before = read_track(&path).unwrap();
+        let key = crate::art::key(&before);
+        assert!(crate::art::load(&key, &before.path).is_none());
+        let mut data = std::io::Cursor::new(Vec::new());
+        image::RgbImage::new(8, 8)
+            .write_to(&mut data, image::ImageFormat::Png)
+            .unwrap();
+        let png = data.into_inner();
+        write_tags(&path, "Antes", "Prueba", "Disco", Some(png.clone())).unwrap();
+        edit_tags(&path, " Después ", "Otro", "").unwrap();
+        let after = read_track(&path).unwrap();
+        assert_eq!(
+            (&*after.title, &*after.artist, &*after.album),
+            ("Después", "Otro", "Sin álbum")
+        );
+        assert_eq!(cover(&after.path), Some(png));
+        assert!(crate::art::load(&key, &after.path).is_some());
+        assert!(edit_tags(&path, "  ", "", "").is_err());
+        crate::art::forget(&key);
+        std::fs::remove_file(path).unwrap();
+    }
 }

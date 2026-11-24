@@ -7,7 +7,10 @@ use crate::store::{self, FAVORITES, Playlist};
 use crate::{AppWindow, DownloadItem, GroupItem, OnlineItem, State, TrackItem};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
+
+static UI_ATTACHED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Copy)]
 enum MenuAction {
@@ -17,7 +20,11 @@ enum MenuAction {
     Favorite,
     AddToList,
     RemoveFromList(usize),
+    RemoveFromQueue(usize),
     Delete,
+    Edit,
+    ConfirmDelete,
+    Cancel,
     PlayGroup,
     ShuffleGroup,
     DeleteList,
@@ -55,6 +62,7 @@ struct Core {
     snapshot: Option<Snapshot>,
     toast_gen: u64,
     scanning: bool,
+    scan_again: bool,
     thumbs: std::collections::HashMap<String, (slint::Image, slint::Color)>,
     thumb_tried: std::collections::HashSet<String>,
     thumbs_busy: bool,
@@ -99,6 +107,7 @@ fn strings(v: &[&str]) -> ModelRc<SharedString> {
 
 pub fn run() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
+    UI_ATTACHED.store(true, Ordering::Release);
     UI.with(|u| *u.borrow_mut() = Some(ui.as_weak()));
     let settings = store::load_settings();
     let st = ui.global::<State>();
@@ -106,10 +115,19 @@ pub fn run() -> Result<(), slint::PlatformError> {
     st.set_shuffle(settings.shuffle);
     st.set_repeat_mode(settings.repeat as i32);
 
+    static ENGINE: std::sync::OnceLock<PlayerHandle> = std::sync::OnceLock::new();
     PLAYER.with(|p| {
-        *p.borrow_mut() = Some(player::spawn(settings, |e| {
-            post(move |ui, core| on_player(ui, core, e))
-        }))
+        *p.borrow_mut() = Some(
+            ENGINE
+                .get_or_init(|| {
+                    player::spawn(settings, |e| {
+                        if UI_ATTACHED.load(Ordering::Acquire) {
+                            post(move |ui, core| on_player(ui, core, e));
+                        }
+                    })
+                })
+                .clone(),
+        )
     });
     DOWNLOADER.with(|d| {
         *d.borrow_mut() = Some(download::spawn(|u| {
@@ -125,7 +143,10 @@ pub fn run() -> Result<(), slint::PlatformError> {
     with(|ui, core| refresh_library(ui, core));
     rescan();
     bind(&ui);
-    ui.run()
+    send(Cmd::Snapshot);
+    let result = ui.run();
+    UI_ATTACHED.store(false, Ordering::Release);
+    result
 }
 
 fn bind(ui: &AppWindow) {
@@ -193,14 +214,14 @@ fn bind(ui: &AppWindow) {
     st.on_track_menu(|i| {
         with(|ui, core| {
             if let Some(t) = core.visible.get(i as usize).cloned() {
-                open_track_menu(ui, core, t);
+                open_track_menu(ui, core, t, None);
             }
         })
     });
     st.on_current_menu(|| {
         with(|ui, core| {
             if let Some(t) = core.snapshot.as_ref().and_then(|s| s.current.clone()) {
-                open_track_menu(ui, core, t);
+                open_track_menu(ui, core, t, None);
             }
         })
     });
@@ -219,6 +240,50 @@ fn bind(ui: &AppWindow) {
         })
     });
     st.on_menu_action(|i| with(|ui, core| menu_action(ui, core, i as usize)));
+    st.on_save_edit(|| {
+        with(|ui, core| {
+            let st = ui.global::<State>();
+            let Some(track) = core.menu_track.clone() else {
+                return;
+            };
+            let (title, artist, album) = (
+                st.get_edit_title(),
+                st.get_edit_artist(),
+                st.get_edit_album(),
+            );
+            if title.trim().is_empty() {
+                toast(ui, core, "Escribí un título".into());
+                return;
+            }
+            // Check write access without modifying the file; leave the draft open on denial.
+            if let Err(e) = std::fs::OpenOptions::new().write(true).open(&track.path) {
+                write_error(ui, core, e);
+                return;
+            }
+            if st.get_edit_saving() {
+                return;
+            }
+            st.set_edit_saving(true);
+            std::thread::spawn(move || {
+                let path = std::path::Path::new(&track.path);
+                let result = library::edit_tags(path, &title, &artist, &album).and_then(|_| {
+                    library::read_track(path).ok_or("No se pudo releer la canción".into())
+                });
+                post(move |ui, core| {
+                    let st = ui.global::<State>();
+                    st.set_edit_saving(false);
+                    match result {
+                        Ok(new) => {
+                            apply_track_update(ui, core, new);
+                            st.set_edit_open(false);
+                            toast(ui, core, "Cambios guardados".into());
+                        }
+                        Err(e) => toast(ui, core, format!("No se pudo guardar: {e}")),
+                    }
+                });
+            });
+        })
+    });
     st.on_choose_playlist(|i| {
         with(|ui, core| {
             let (Some(track), Some(list)) =
@@ -259,7 +324,18 @@ fn bind(ui: &AppWindow) {
     st.on_toggle_shuffle(|| send(Cmd::Shuffle));
     st.on_cycle_repeat(|| send(Cmd::Repeat));
     st.on_queue_jump(|i| send(Cmd::Jump(i as usize)));
-    st.on_queue_remove(|i| send(Cmd::Remove(i as usize)));
+    st.on_queue_menu(|i| {
+        with(|ui, core| {
+            if let Some(t) = core
+                .snapshot
+                .as_ref()
+                .and_then(|s| s.queue.get(i as usize))
+                .cloned()
+            {
+                open_track_menu(ui, core, t, Some(i as usize));
+            }
+        })
+    });
     st.on_toggle_fav(|| {
         with(|ui, core| {
             if let Some(t) = core.snapshot.as_ref().and_then(|s| s.current.clone()) {
@@ -290,6 +366,7 @@ fn bind(ui: &AppWindow) {
 fn rescan() {
     with(|ui, core| {
         if core.scanning {
+            core.scan_again = true;
             return;
         }
         core.scanning = true;
@@ -301,8 +378,14 @@ fn rescan() {
             library::save_cache(&tracks);
             post(move |ui, core| {
                 core.scanning = false;
+                core.thumb_tried.clear();
+                let live: std::collections::HashSet<_> = tracks.iter().map(art::key).collect();
+                core.thumbs.retain(|k, _| live.contains(k));
                 core.library = tracks;
                 refresh_library(ui, core);
+                if std::mem::take(&mut core.scan_again) {
+                    let _ = slint::invoke_from_event_loop(rescan);
+                }
             });
         });
     });
@@ -497,27 +580,31 @@ fn request_thumbs(core: &mut Core) {
         core.thumbs_again = true;
         return;
     }
-    let mut want: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+    let mut want = Vec::new();
     for t in &core.library {
         let k = art::key(t);
         if !core.thumbs.contains_key(&k) && !core.thumb_tried.contains(&k) {
-            want.entry(k).or_default().push(t.path.clone());
+            core.thumb_tried.insert(k.clone());
+            want.push((k, t.path.clone()));
         }
     }
     if want.is_empty() {
         return;
     }
     core.thumbs_busy = true;
-    core.thumb_tried.extend(want.keys().cloned());
     std::thread::spawn(move || {
         let total = want.len();
         let mut batch = vec![];
-        for (i, (k, paths)) in want.into_iter().enumerate() {
-            if let Some(t) = art::load(&k, &paths) {
+        let mut last = std::time::Instant::now();
+        for (i, (k, path)) in want.into_iter().enumerate() {
+            if let Some(t) = art::load(&k, &path) {
                 let tint = art::tint(&t);
                 batch.push((k, t, tint));
             }
-            if !batch.is_empty() && (batch.len() >= 24 || i + 1 == total) {
+            if !batch.is_empty()
+                && (batch.len() >= 16 || i + 1 == total || last.elapsed().as_millis() >= 200)
+            {
+                last = std::time::Instant::now();
                 let ready = std::mem::take(&mut batch);
                 post(move |ui, core| {
                     for (k, t, tint) in ready {
@@ -632,7 +719,7 @@ fn toggle_favorite(ui: &AppWindow, core: &mut Core, track: &Track) {
     toast(ui, core, msg.into());
 }
 
-fn open_track_menu(ui: &AppWindow, core: &mut Core, track: Track) {
+fn open_track_menu(ui: &AppWindow, core: &mut Core, track: Track, queue_index: Option<usize>) {
     let fav = core
         .playlists
         .iter()
@@ -651,13 +738,18 @@ fn open_track_menu(ui: &AppWindow, core: &mut Core, track: Track) {
         ),
         (MenuAction::AddToList, "Añadir a una lista…"),
     ];
-    if let (3, Some(g)) = (core.view, &core.group) {
+    if let Some(i) = queue_index {
+        if core.snapshot.as_ref().is_some_and(|s| s.index != i) {
+            actions.push((MenuAction::RemoveFromQueue(i), "Quitar de la cola"));
+        }
+    } else if let (3, Some(g)) = (core.view, &core.group) {
         if let Some(idx) = core.playlists.iter().position(|p| &p.name == g) {
             actions.push((MenuAction::RemoveFromList(idx), "Quitar de esta lista"));
         }
     }
     actions.push((MenuAction::FillMeta, "Completar datos y portada"));
-    actions.push((MenuAction::Delete, "Eliminar archivo"));
+    actions.push((MenuAction::Edit, "Editar datos…"));
+    actions.push((MenuAction::Delete, "Eliminar archivo…"));
     let title = format!("{} — {}", track.title, track.artist);
     core.menu_track = Some(track);
     core.menu_group = None;
@@ -722,8 +814,49 @@ fn menu_action(ui: &AppWindow, core: &mut Core, i: usize) {
         }
         MenuAction::Delete => {
             if let Some(t) = track {
+                show_menu(
+                    ui,
+                    core,
+                    &format!("¿Eliminar «{}» del dispositivo?", t.title),
+                    vec![
+                        (MenuAction::Cancel, "Cancelar"),
+                        (MenuAction::ConfirmDelete, "Eliminar definitivamente"),
+                    ],
+                );
+            }
+        }
+        MenuAction::Cancel => {}
+        MenuAction::RemoveFromQueue(i) => {
+            if track
+                .as_ref()
+                .is_some_and(|t| core.snapshot.as_ref().and_then(|s| s.queue.get(i)) == Some(t))
+            {
+                send(Cmd::Remove(i));
+            }
+        }
+        MenuAction::Edit => {
+            if let Some(t) = track {
+                let st = ui.global::<State>();
+                st.set_edit_title(t.title.into());
+                st.set_edit_artist(if t.artist == "Artista desconocido" {
+                    "".into()
+                } else {
+                    t.artist.into()
+                });
+                st.set_edit_album(if t.album == "Sin álbum" {
+                    "".into()
+                } else {
+                    t.album.into()
+                });
+                st.set_edit_open(true);
+            }
+        }
+        MenuAction::ConfirmDelete => {
+            if let Some(t) = track {
                 match std::fs::remove_file(&t.path) {
                     Ok(()) => {
+                        forget_art(core, &art::key(&t));
+                        player::forget_cover(&t.path);
                         send(Cmd::Forget(t.path.clone()));
                         core.library.retain(|x| x.path != t.path);
                         for p in &mut core.playlists {
@@ -734,7 +867,7 @@ fn menu_action(ui: &AppWindow, core: &mut Core, i: usize) {
                         refresh_library(ui, core);
                         toast(ui, core, "Archivo eliminado".into());
                     }
-                    Err(e) => toast(ui, core, format!("No se pudo eliminar: {e}")),
+                    Err(e) => write_error(ui, core, e),
                 }
             }
         }
@@ -785,6 +918,33 @@ fn menu_action(ui: &AppWindow, core: &mut Core, i: usize) {
     }
 }
 
+fn write_error(ui: &AppWindow, core: &mut Core, e: std::io::Error) {
+    if e.kind() == std::io::ErrorKind::PermissionDenied && !crate::platform::can_write_all() {
+        toast(
+            ui,
+            core,
+            "Activá el permiso de archivos y volvé a intentarlo".into(),
+        );
+        crate::platform::ask_write_all();
+    } else {
+        toast(ui, core, format!("No se pudo modificar el archivo: {e}"));
+    }
+}
+
+fn apply_track_update(ui: &AppWindow, core: &mut Core, new: Track) {
+    if let Some(i) = core.library.iter().position(|t| t.path == new.path) {
+        let old = art::key(&core.library[i]);
+        forget_art(core, &old);
+        forget_art(core, &art::key(&new));
+        player::forget_cover(&new.path);
+        send(Cmd::Refresh(new.clone()));
+        core.library[i] = new;
+        library::sort(&mut core.library);
+        library::save_cache(&core.library);
+        refresh_library(ui, core);
+    }
+}
+
 /// Looks up tags and covers online in the background and rewrites the files.
 fn fill_meta(ui: &AppWindow, core: &mut Core, tracks: Vec<Track>) {
     if tracks.is_empty() {
@@ -800,16 +960,8 @@ fn fill_meta(ui: &AppWindow, core: &mut Core, tracks: Vec<Track>) {
                     ok += 1;
                     let path = t.path.clone();
                     post(move |ui, core| {
-                        crate::player::forget_cover(&path);
                         if let Some(new) = library::read_track(std::path::Path::new(&path)) {
-                            forget_art(core, &art::key(&new));
-                            if let Some(pos) = core.library.iter().position(|x| x.path == path) {
-                                let old = art::key(&core.library[pos]);
-                                forget_art(core, &old);
-                                core.library[pos] = new;
-                            }
-                            library::save_cache(&core.library);
-                            refresh_library(ui, core);
+                            apply_track_update(ui, core, new);
                         }
                     });
                 }
@@ -870,19 +1022,17 @@ fn on_player(ui: &AppWindow, core: &mut Core, event: Event) {
             let _ = slint::invoke_from_event_loop(rescan);
         }
         Event::Changed(snap) => {
-            let changed_track = core
-                .snapshot
-                .as_ref()
-                .and_then(|s| s.current.as_ref())
-                .map(|t| &t.path)
-                != snap.current.as_ref().map(|t| &t.path);
+            let changed_track =
+                core.snapshot.as_ref().and_then(|s| s.current.as_ref()) != snap.current.as_ref();
             st.set_has_current(snap.current.is_some());
             if let Some(t) = &snap.current {
                 st.set_now_title(t.title.clone().into());
                 st.set_now_artist(t.artist.clone().into());
                 st.set_now_album(t.album.clone().into());
             }
-            if changed_track {
+            if changed_track
+                || core.snapshot.as_ref().and_then(|s| s.cover.as_ref()) != snap.cover.as_ref()
+            {
                 let image = snap
                     .cover
                     .as_ref()

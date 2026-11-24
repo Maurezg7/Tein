@@ -25,7 +25,7 @@ public class MainActivity extends NativeActivity {
             wanted.add(Manifest.permission.POST_NOTIFICATIONS);
         } else {
             wanted.add(Manifest.permission.READ_EXTERNAL_STORAGE);
-            if (Build.VERSION.SDK_INT <= 28) wanted.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            if (Build.VERSION.SDK_INT <= 29) wanted.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
         }
         List<String> missing = new ArrayList<>();
         for (String p : wanted) {
@@ -44,12 +44,6 @@ public class MainActivity extends NativeActivity {
     public void onBackPressed() {
         // Keep the native UI alive (and the music playing) instead of destroying it.
         moveTaskToBack(true);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (isFinishing()) TeinBridge.shutdown(this);
     }
 
     @Override
