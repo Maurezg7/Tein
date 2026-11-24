@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds a signed Tein APK using only the Android SDK command-line tools (no Gradle).
-# Usage: ./build-apk.sh [abi ...]   (default: arm64-v8a x86_64)
+# Usage: ./build-apk.sh [abi ...]   (default: arm64-v8a armeabi-v7a)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -10,7 +10,7 @@ PLATFORM_JAR="$SDK/platforms/android-${COMPILE_SDK:-34}/android.jar"
 export ANDROID_HOME="$SDK"
 export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$(ls -d "$SDK"/ndk/* | sort -V | tail -1)}"
 export ANDROID_JAR="$PLATFORM_JAR"
-ABIS=("${@:-arm64-v8a x86_64}")
+ABIS=("${@:-arm64-v8a armeabi-v7a}")
 read -r -a ABIS <<< "${ABIS[*]}"
 
 APP=android/app/src/main
@@ -20,10 +20,17 @@ KS_PASS="${TEIN_KEYSTORE_PASSWORD:-tein123}"
 rm -rf "$OUT" && mkdir -p "$OUT"/{res,gen,classes,lib}
 
 echo "==> Rust (${ABIS[*]})"
-targs=()
-for abi in "${ABIS[@]}"; do targs+=(-t "$abi"); done
 if [ -z "${SKIP_CARGO:-}" ]; then
-    cargo ndk -P 26 "${targs[@]}" -o "$OUT/lib" build --release --lib
+    for abi in "${ABIS[@]}"; do
+        if [ "$abi" = armeabi-v7a ]; then
+            # rust-skia ships no 32-bit ARM binaries: build Skia from source, with the NDK's libclang for bindgen.
+            FORCE_SKIA_BUILD=1 ANDROID_NDK="${ANDROID_NDK:-$ANDROID_NDK_HOME}" SKIA_NINJA_COMMAND="${SKIA_NINJA_COMMAND:-$(command -v ninja)}" \
+                LIBCLANG_PATH="${LIBCLANG_PATH:-$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/lib}" \
+                cargo ndk -P 26 -t "$abi" -o "$OUT/lib" build --release --lib
+        else
+            cargo ndk -P 26 -t "$abi" -o "$OUT/lib" build --release --lib
+        fi
+    done
 else
     for abi in "${ABIS[@]}"; do
         mkdir -p "$OUT/lib/$abi"

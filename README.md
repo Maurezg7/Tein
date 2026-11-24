@@ -18,7 +18,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 ![Rust](https://img.shields.io/badge/Rust-2024-000000?style=flat-square&logo=rust&logoColor=white)
 ![Android](https://img.shields.io/badge/Android-8.0%20a%2015-3DDC84?style=flat-square&logo=android&logoColor=white)
 ![Slint](https://img.shields.io/badge/UI-Slint-2379F4?style=flat-square)
-![APK](https://img.shields.io/badge/APK-21%20MB-8b5cf6?style=flat-square)
+![APK](https://img.shields.io/badge/APK-37%20MB-8b5cf6?style=flat-square)
 ![Licencia](https://img.shields.io/badge/licencia-MIT-a78bfa?style=flat-square)
 
 </div>
@@ -77,7 +77,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 
 ### Liviana
 - Núcleo nativo en Rust, sin Electron ni WebView
-- APK de 21 MB y arranque inmediato
+- APK de 37 MB (32 y 64 bits en uno) y arranque inmediato
 - Sin cuentas, sin anuncios, sin rastreo
 - Todo se guarda en el teléfono
 
@@ -95,21 +95,22 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 
 ## Compatibilidad
 
-Tein funciona en **Android 8.0 (Oreo) hasta Android 15**, en celulares de **64 bits (arm64)**. El **Samsung Galaxy A13** es compatible en todas sus versiones (4G y 5G), con Android 12, 13 o 14.
+Tein funciona en **Android 8.0 (Oreo) hasta Android 15**, en celulares de **32 y 64 bits**. El APK trae las dos versiones (`armeabi-v7a` y `arm64-v8a`) y Android instala la que corresponde.
+
+El **Samsung Galaxy A13** es compatible en todas sus versiones (4G y 5G), con Android 12, 13 o 14. Varios A13 vienen con Android de 32 bits aunque el procesador sea de 64; por eso el APK incluye la versión de 32 bits.
 
 | Android | Versión | Estado |
 |---|---|---|
 | 8.0 – 8.1 | Oreo (API 26–27) | ✅ Probado en emulador (Android 8.0) |
-| 9 – 11 | Pie, 10, 11 | ✅ Compatible |
+| 9 – 11 | Pie, 10, 11 | ✅ Probado en emulador (Android 11, versión de 32 bits) |
 | 12 – 13 | API 31–33 | ✅ Probado en emulador (Android 12) |
 | 14 – 15 | API 34–35 | ✅ Probado en emulador (Android 15) |
 | 7.x o anterior | — | ❌ No soportado |
 
-**Celulares parecidos al A13 que funcionan:** Galaxy A12, A14, A15, A23, A24, A25, A32, A33, A34, A04s, A05s, M13, M14, M23 y en general cualquier Samsung, Motorola, Xiaomi o Redmi de 64 bits con Android 8.0 o superior.
+**Celulares parecidos al A13 que funcionan:** Galaxy A02, A03, A03 Core, A04, A04s, A05s, A12, A14, A15, A23, A24, A25, A32, A33, A34, M13, M14, M23 y en general cualquier Samsung, Motorola, Xiaomi o Redmi con Android 8.0 o superior.
 
-**No funciona en celulares de 32 bits**, como los Android Go de gama más baja (por ejemplo Galaxy A03 Core o A02 con sistema de 32 bits). La librería gráfica Skia no tiene versión para `armeabi-v7a`.
+No funciona en celulares x86 de 32 bits ni con Android 7 o anterior.
 
-> **¿Mi celular es de 64 bits?** En Ajustes → Acerca del teléfono → Información de software, o instalá una app como *CPU-Z* y fijate que diga `arm64-v8a` o `64-bit`.
 
 En Android 11 o superior las descargas van a `Música/Tein`. Si el sistema no deja escribir ahí, Tein las guarda en la carpeta propia de la app y igual aparecen en la biblioteca.
 
@@ -118,13 +119,13 @@ En Android 11 o superior las descargas van a `Música/Tein`. Si el sistema no de
 Requisitos: Rust, Android SDK (platform 34 y build-tools 34), **Android NDK r30** (`30.0.16248370`), Java 17 y `cargo-ndk`.
 
 ```bash
-rustup target add aarch64-linux-android x86_64-linux-android
+rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 cargo install cargo-ndk
 export ANDROID_HOME=~/android-sdk
 export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.16248370
 
-./build-apk.sh              # arm64-v8a + x86_64 (emulador)
-./build-apk.sh arm64-v8a    # solo celulares, APK más chico
+./build-apk.sh                      # arm64-v8a + armeabi-v7a (celulares)
+./build-apk.sh arm64-v8a x86_64     # 64 bits + emulador
 ```
 
 El APK queda en `target/apk/tein.apk`. Para instalarlo: `adb install -r target/apk/tein.apk`.
@@ -134,7 +135,7 @@ También se puede compilar con Gradle: `cd android && ./gradlew assembleRelease`
 <summary>Notas de compilación</summary>
 
 - Con NDK anteriores a r30 la app compila pero se cierra al abrir (`cannot locate symbol __hash_memory`).
-- Slint usa Skia en Android y no hay binarios precompilados de Skia para `armeabi-v7a`, por eso no se incluye esa arquitectura.
+- Slint usa Skia en Android y no hay binarios precompilados de Skia para `armeabi-v7a`. El script compila Skia desde el código para esa arquitectura (tarda unos minutos la primera vez y necesita `ninja` y `python3`) y usa el `libclang` del NDK para generar los bindings.
 
 </details>
 
