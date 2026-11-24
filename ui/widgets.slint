@@ -1,4 +1,5 @@
 import { Palette, Icons } from "theme.slint";
+import { LineEdit } from "std-widgets.slint";
 
 export component Icon inherits Path {
     in property <color> tint: Palette.text;
@@ -172,63 +173,11 @@ export component Bar inherits Rectangle {
     }
 }
 
-export component SearchField inherits Rectangle {
-    in property <string> placeholder;
-    in-out property <string> text;
-    callback edited(string);
-    callback accepted(string);
+export component InputField inherits LineEdit {
+    min-width: 1px;
+    preferred-width: 1px;
+    horizontal-stretch: 1;
     height: 46px;
-    border-radius: 12px;
-    background: Palette.surface-2;
-    border-width: input.has-focus ? 1.5px : 0px;
-    border-color: Palette.accent;
-    HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 4px;
-        spacing: 10px;
-        Icon {
-            commands: Icons.search;
-            tint: Palette.muted;
-            size: 20px;
-            y: (parent.height - self.height) / 2;
-        }
-        Rectangle {
-            if root.text == "": Text {
-                x: 0;
-                width: parent.width;
-                height: parent.height;
-                text: root.placeholder;
-                color: Palette.muted;
-                font-size: 15px;
-                vertical-alignment: center;
-                overflow: elide;
-            }
-            input := TextInput {
-                width: 100%;
-                height: 100%;
-                text <=> root.text;
-                color: Palette.text;
-                font-size: 15px;
-                single-line: true;
-                vertical-alignment: center;
-                selection-background-color: Palette.accent-soft;
-                edited => { root.edited(self.text); }
-                accepted => { root.accepted(self.text); }
-            }
-        }
-        if root.text != "": IconButton {
-            icon: Icons.close;
-            icon-size: 18px;
-            tint: Palette.muted;
-            width: 38px;
-            height: 38px;
-            y: (parent.height - self.height) / 2;
-            clicked => {
-                root.text = "";
-                root.edited("");
-            }
-        }
-    }
 }
 
 export component ListRow inherits Rectangle {

@@ -12,6 +12,9 @@ mod platform;
 mod player;
 mod store;
 
+#[cfg(all(test, not(target_os = "android")))]
+mod input_layout_tests;
+
 pub fn run() {
     if let Err(e) = app::run() {
         log::error!("UI error: {e}");

@@ -1,6 +1,6 @@
-import { LineEdit, ListView, Spinner } from "std-widgets.slint";
+import { ListView, Spinner } from "std-widgets.slint";
 import { Palette, Icons } from "theme.slint";
-import { Icon, IconButton, Chip, PillButton, Cover, Bar, ListRow, Card, SearchField, EqBars } from "widgets.slint";
+import { Icon, IconButton, Chip, PillButton, Cover, Bar, ListRow, Card, InputField, EqBars } from "widgets.slint";
 
 export struct TrackItem { title: string, subtitle: string, trailing: string, playing: bool, art: image, has-art: bool }
 export struct GroupItem { name: string, info: string, art: image, has-art: bool }
@@ -190,8 +190,8 @@ component LibraryPage inherits VerticalLayout {
     if !root.in-group: HorizontalLayout {
         padding-left: root.pad;
         padding-right: root.pad;
-        SearchField {
-            placeholder: "Canciones, artistas o álbumes";
+        InputField {
+            placeholder-text: "Canciones, artistas o álbumes";
             text <=> State.lib-query;
             edited(text) => { State.lib-filter(text); }
         }
@@ -388,14 +388,17 @@ component SearchPage inherits VerticalLayout {
         padding-left: root.pad;
         padding-right: root.pad;
         spacing: 8px;
-        SearchField {
-            placeholder: "Canción, artista o link";
+        InputField {
+            placeholder-text: "Canción, artista o link";
             text <=> State.online-query;
             accepted(text) => { State.online-search(text); }
         }
         IconButton {
             icon: Icons.search;
             filled: true;
+            accessible-role: button;
+            accessible-label: "Buscar";
+            accessible-action-default => { State.online-search(State.online-query); }
             width: 46px;
             height: 46px;
             clicked => { State.online-search(State.online-query); }
@@ -1071,8 +1074,8 @@ component NameDialog inherits Rectangle {
                 font-size: 20px;
                 font-weight: 800;
             }
-            SearchField {
-                placeholder: "Nombre de la lista";
+            InputField {
+                placeholder-text: "Nombre de la lista";
                 text <=> root.name;
                 accepted(text) => { root.create(text); }
             }
@@ -1299,16 +1302,17 @@ export component AppWindow inherits Window {
                 Text { text: "Editar canción"; font-size: 20px; color: Palette.text; }
                 Flickable {
                     vertical-stretch: 1;
+                    content-width: self.width;
                     content-height: fields.preferred-height;
                     fields := VerticalLayout {
                         width: parent.width;
                         spacing: 4px;
                         Text { text: "Título"; color: Palette.muted; }
-                        LineEdit { text <=> State.edit-title; enabled: !State.edit-saving; }
+                        InputField { accessible-label: "Título"; text <=> State.edit-title; enabled: !State.edit-saving; }
                         Text { text: "Artista"; color: Palette.muted; }
-                        LineEdit { text <=> State.edit-artist; enabled: !State.edit-saving; }
+                        InputField { accessible-label: "Artista"; text <=> State.edit-artist; enabled: !State.edit-saving; }
                         Text { text: "Álbum"; color: Palette.muted; }
-                        LineEdit { text <=> State.edit-album; enabled: !State.edit-saving; }
+                        InputField { accessible-label: "Álbum"; text <=> State.edit-album; enabled: !State.edit-saving; }
                     }
                 }
                 HorizontalLayout {
