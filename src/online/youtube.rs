@@ -3,7 +3,9 @@ use crate::net::{self, Result};
 use serde_json::{Value, json};
 use std::io::{Read, Write};
 
-const VR_UA: &str = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip";
+const VR_UA: &str = "com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip";
+const ANDROID_UA: &str = "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip";
+const VISION_UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
 const WEB_VERSION: &str = "2.20240726.00.00";
 const CHUNK: u64 = 4 * 1024 * 1024;
 
@@ -60,7 +62,7 @@ pub fn resolve_link(url: &str) -> Result<Resolved> {
         }
     }
     let id = video_id_from_url(url).ok_or("Link de YouTube no reconocido")?;
-    let (info, _) = player(&id)?;
+    let (info, _) = player(&id, 0)?;
     let details = &info["videoDetails"];
     let track = OnlineTrack {
         title: details["title"].as_str().unwrap_or(&id).to_string(),
@@ -233,14 +235,15 @@ struct Client {
     context: fn() -> Value,
 }
 
-/// Player clients tried in order; some videos are only served to one of them.
+/// Player clients tried in order; when one is refused (newer ANDROID_VR builds
+/// get 403 after the first MB) the download resumes with the next one.
 const CLIENTS: &[Client] = &[
     Client {
         ua: VR_UA,
         id: "28",
-        version: "1.65.10",
+        version: "1.60.19",
         context: || {
-            json!({ "clientName": "ANDROID_VR", "clientVersion": "1.65.10", "deviceMake": "Oculus",
+            json!({ "clientName": "ANDROID_VR", "clientVersion": "1.60.19", "deviceMake": "Oculus",
                 "deviceModel": "Quest 3", "androidSdkVersion": 32, "osName": "Android", "osVersion": "12L",
                 "hl": "es", "gl": "US" })
         },
@@ -252,6 +255,25 @@ const CLIENTS: &[Client] = &[
         context: || {
             json!({ "clientName": "IOS", "clientVersion": "20.10.4", "deviceMake": "Apple",
                 "deviceModel": "iPhone16,2", "osName": "iPhone", "osVersion": "18.3.2.22D82",
+                "hl": "es", "gl": "US" })
+        },
+    },
+    Client {
+        ua: ANDROID_UA,
+        id: "3",
+        version: "20.10.38",
+        context: || {
+            json!({ "clientName": "ANDROID", "clientVersion": "20.10.38", "androidSdkVersion": 30,
+                "osName": "Android", "osVersion": "11", "hl": "es", "gl": "US" })
+        },
+    },
+    Client {
+        ua: VISION_UA,
+        id: "101",
+        version: "0.1",
+        context: || {
+            json!({ "clientName": "VISIONOS", "clientVersion": "0.1", "deviceMake": "Apple",
+                "deviceModel": "RealityDevice14,1", "osName": "visionOS", "osVersion": "1.3.21O771",
                 "hl": "es", "gl": "US" })
         },
     },
@@ -278,11 +300,12 @@ fn visitor_data() -> Option<String> {
     cache.clone()
 }
 
-/// Player response plus the user agent its stream URLs must be fetched with.
-fn player(video_id: &str) -> Result<(Value, &'static str)> {
+/// Player response from the first client at or after `start` that accepts the
+/// video, plus that client's index.
+fn player(video_id: &str, start: usize) -> Result<(Value, usize)> {
     let mut last_err = String::from("YouTube no respondió");
     let visitor = visitor_data();
-    for client in CLIENTS {
+    for (i, client) in CLIENTS.iter().enumerate().skip(start) {
         let mut ctx = (client.context)();
         let mut headers = vec![
             ("User-Agent", client.ua),
@@ -310,7 +333,7 @@ fn player(video_id: &str) -> Result<(Value, &'static str)> {
         };
         let status = resp["playabilityStatus"]["status"].as_str().unwrap_or("");
         if status == "OK" {
-            return Ok((resp, client.ua));
+            return Ok((resp, i));
         }
         let reason = resp["playabilityStatus"]["reason"]
             .as_str()
@@ -323,12 +346,17 @@ fn player(video_id: &str) -> Result<(Value, &'static str)> {
 pub struct AudioStream {
     pub url: String,
     pub size: u64,
-    ua: &'static str,
+    video_id: String,
+    client: usize,
 }
 
 /// Best AAC (m4a) audio stream, which the player decodes natively.
 pub fn audio_stream(video_id: &str) -> Result<AudioStream> {
-    let (info, ua) = player(video_id)?;
+    stream_from(video_id, 0)
+}
+
+fn stream_from(video_id: &str, start: usize) -> Result<AudioStream> {
+    let (info, client) = player(video_id, start)?;
     let formats = info["streamingData"]["adaptiveFormats"]
         .as_array()
         .ok_or("Sin formatos de audio")?;
@@ -352,7 +380,8 @@ pub fn audio_stream(video_id: &str) -> Result<AudioStream> {
                 .as_str()
                 .and_then(|s| s.parse().ok())
                 .unwrap_or(0),
-            ua,
+            video_id: video_id.to_string(),
+            client,
         })
         .ok_or_else(|| "No hay audio m4a disponible para este video".into())
 }
@@ -363,9 +392,12 @@ pub fn download(
     dest: &std::path::Path,
     progress: &mut dyn FnMut(f32),
 ) -> Result<()> {
+    use std::io::{Seek, SeekFrom};
     let mut file =
         std::fs::File::create(dest).map_err(|e| format!("No se pudo crear el archivo: {e}"))?;
-    let total = stream.size;
+    let mut url = stream.url.clone();
+    let mut client = stream.client;
+    let mut total = stream.size;
     let mut done: u64 = 0;
     let mut buf = vec![0u8; 64 * 1024];
     loop {
@@ -374,17 +406,30 @@ pub fn download(
         } else {
             done + CHUNK - 1
         };
-        let resp = net::agent()
-            .get(&stream.url)
-            .header("User-Agent", stream.ua)
+        let resp = match net::agent()
+            .get(&url)
+            .header("User-Agent", CLIENTS[client].ua)
             .header("Range", &format!("bytes={done}-{end}"))
             .call()
-            .map_err(|e| match e {
-                ureq::Error::StatusCode(403) => {
+        {
+            Ok(r) => r,
+            Err(ureq::Error::StatusCode(403)) => {
+                let next = stream_from(&stream.video_id, client + 1).map_err(|_| {
                     "YouTube bloqueó la descarga (403). Probá otra red o más tarde.".to_string()
+                })?;
+                log::warn!("403 con cliente {client}, sigo con {}", next.client);
+                if next.size != total {
+                    file.set_len(0).map_err(|e| e.to_string())?;
+                    file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+                    done = 0;
+                    total = next.size;
                 }
-                e => format!("Error descargando: {e}"),
-            })?;
+                url = next.url;
+                client = next.client;
+                continue;
+            }
+            Err(e) => return Err(format!("Error descargando: {e}")),
+        };
         let mut reader = resp.into_body().into_reader();
         let mut got = 0u64;
         loop {

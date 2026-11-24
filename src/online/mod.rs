@@ -169,4 +169,16 @@ mod tests {
         println!("{} ({} tracks)", r.label, r.tracks.len());
         assert!(r.tracks.len() > 100);
     }
+
+    #[test]
+    #[ignore = "network"]
+    fn youtube_download() {
+        let id = std::env::var("YT_ID").unwrap_or("dQw4w9WgXcQ".into());
+        let s = youtube::audio_stream(&id).unwrap();
+        let dest = std::env::temp_dir().join("tein_yt_test.m4a");
+        youtube::download(&s, &dest, &mut |_| {}).unwrap();
+        let len = std::fs::metadata(&dest).unwrap().len();
+        println!("downloaded {len} of {}", s.size);
+        assert!(len > 1_000_000);
+    }
 }
