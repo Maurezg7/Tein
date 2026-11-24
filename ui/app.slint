@@ -213,7 +213,7 @@ component LibraryPage inherits VerticalLayout {
             title: item.name;
             subtitle: item.info;
             icon: State.lib-view == 1 ? Icons.person : State.lib-view == 2 ? Icons.album : Icons.list;
-            show-more: State.lib-view == 3;
+            show-more: State.lib-view > 0;
             clicked => { State.group-clicked(i); }
             more => { State.group-menu(i); }
         }

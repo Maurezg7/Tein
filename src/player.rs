@@ -369,14 +369,27 @@ impl Engine {
     }
 }
 
-/// Extracts the embedded cover to the cache so the UI can load it by path.
-fn cover_file(path: &str) -> Option<String> {
+fn cover_cache(path: &str, ext: &str) -> std::path::PathBuf {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     path.hash(&mut h);
-    let dir = crate::paths::get().cache_dir.join("covers");
+    crate::paths::get()
+        .cache_dir
+        .join("covers")
+        .join(format!("{:x}.{ext}", h.finish()))
+}
+
+/// Drops the cached cover so a newly written one is shown.
+pub fn forget_cover(path: &str) {
     for ext in ["jpg", "png"] {
-        let f = dir.join(format!("{:x}.{ext}", h.finish()));
+        let _ = std::fs::remove_file(cover_cache(path, ext));
+    }
+}
+
+/// Extracts the embedded cover to the cache so the UI can load it by path.
+fn cover_file(path: &str) -> Option<String> {
+    for ext in ["jpg", "png"] {
+        let f = cover_cache(path, ext);
         if f.exists() {
             return Some(f.to_string_lossy().to_string());
         }
@@ -387,8 +400,8 @@ fn cover_file(path: &str) -> Option<String> {
     } else {
         "jpg"
     };
-    let _ = std::fs::create_dir_all(&dir);
-    let f = dir.join(format!("{:x}.{ext}", h.finish()));
+    let f = cover_cache(path, ext);
+    let _ = std::fs::create_dir_all(f.parent()?);
     std::fs::write(&f, data).ok()?;
     Some(f.to_string_lossy().to_string())
 }

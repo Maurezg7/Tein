@@ -3,6 +3,7 @@ slint::include_modules!();
 mod app;
 mod download;
 mod library;
+mod meta;
 mod net;
 mod online;
 mod paths;

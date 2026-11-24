@@ -20,6 +20,8 @@ enum MenuAction {
     PlayGroup,
     ShuffleGroup,
     DeleteList,
+    FillMeta,
+    FillGroupMeta,
 }
 
 struct DownloadEntry {
@@ -204,8 +206,9 @@ fn bind(ui: &AppWindow) {
             let mut actions = vec![
                 (MenuAction::PlayGroup, "Reproducir"),
                 (MenuAction::ShuffleGroup, "Reproducir aleatorio"),
+                (MenuAction::FillGroupMeta, "Completar datos y portadas"),
             ];
-            if key != FAVORITES {
+            if core.view == 3 && key != FAVORITES {
                 actions.push((MenuAction::DeleteList, "Eliminar lista"));
             }
             core.menu_group = Some(key.clone());
@@ -480,6 +483,7 @@ fn open_track_menu(ui: &AppWindow, core: &mut Core, track: Track) {
             actions.push((MenuAction::RemoveFromList(idx), "Quitar de esta lista"));
         }
     }
+    actions.push((MenuAction::FillMeta, "Completar datos y portada"));
     actions.push((MenuAction::Delete, "Eliminar archivo"));
     let title = format!("{} — {}", track.title, track.artist);
     core.menu_track = Some(track);
@@ -582,6 +586,21 @@ fn menu_action(ui: &AppWindow, core: &mut Core, i: usize) {
                 send(Cmd::Play { queue, index });
             }
         }
+        MenuAction::FillMeta => {
+            if let Some(t) = track {
+                fill_meta(ui, core, vec![t]);
+            }
+        }
+        MenuAction::FillGroupMeta => {
+            let saved = core
+                .group
+                .replace(core.menu_group.clone().unwrap_or_default());
+            refresh_library(ui, core);
+            let tracks = core.visible.clone();
+            core.group = saved;
+            refresh_library(ui, core);
+            fill_meta(ui, core, tracks);
+        }
         MenuAction::DeleteList => {
             if let Some(name) = &core.menu_group {
                 core.playlists
@@ -591,6 +610,60 @@ fn menu_action(ui: &AppWindow, core: &mut Core, i: usize) {
             }
         }
     }
+}
+
+/// Looks up tags and covers online in the background and rewrites the files.
+fn fill_meta(ui: &AppWindow, core: &mut Core, tracks: Vec<Track>) {
+    if tracks.is_empty() {
+        return;
+    }
+    toast(ui, core, "Buscando datos…".into());
+    std::thread::spawn(move || {
+        let total = tracks.len();
+        let (mut ok, mut last_err) = (0, String::new());
+        for (i, t) in tracks.into_iter().enumerate() {
+            match crate::meta::enrich(&t) {
+                Ok(_) => {
+                    ok += 1;
+                    let path = t.path.clone();
+                    post(move |ui, core| {
+                        crate::player::forget_cover(&path);
+                        if let Some(new) = library::read_track(std::path::Path::new(&path)) {
+                            if let Some(slot) = core.library.iter_mut().find(|x| x.path == path) {
+                                *slot = new;
+                            }
+                            library::save_cache(&core.library);
+                            refresh_library(ui, core);
+                        }
+                    });
+                }
+                Err(e) => last_err = e,
+            }
+            if total > 1 {
+                post(move |ui, core| {
+                    toast(ui, core, format!("Completando datos {}/{total}…", i + 1))
+                });
+            }
+        }
+        let blocked = ok < total && !crate::platform::can_write_all();
+        post(move |ui, core| {
+            if blocked {
+                toast(
+                    ui,
+                    core,
+                    "Activá \"Acceso a todos los archivos\" para Tein y probá de nuevo".into(),
+                );
+                crate::platform::ask_write_all();
+                return;
+            }
+            let msg = match (ok, total) {
+                (0, _) => last_err,
+                (1, 1) => "Datos y portada actualizados".into(),
+                _ => format!("Actualizadas {ok} de {total} canciones"),
+            };
+            toast(ui, core, msg);
+        });
+    });
 }
 
 fn toast(ui: &AppWindow, core: &mut Core, msg: String) {

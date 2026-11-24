@@ -61,6 +61,30 @@ public final class TeinBridge {
         });
     }
 
+    /** Whether files of other apps can be rewritten (tags/covers) on Android 11+. */
+    public static boolean canWriteAll() {
+        return android.os.Build.VERSION.SDK_INT < 30
+                || android.os.Environment.isExternalStorageManager();
+    }
+
+    /** Opens the "All files access" settings page for Tein. */
+    public static void askWriteAll() {
+        MAIN.post(() -> {
+            Context c = app;
+            if (c == null || android.os.Build.VERSION.SDK_INT < 30) return;
+            Intent i = new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    android.net.Uri.parse("package:" + c.getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            try {
+                c.startActivity(i);
+            } catch (RuntimeException e) {
+                Intent all = new Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION);
+                all.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                c.startActivity(all);
+            }
+        });
+    }
+
     static void shutdown(Context c) {
         c.stopService(new Intent(c, PlaybackService.class));
         android.os.Process.killProcess(android.os.Process.myPid());

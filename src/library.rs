@@ -159,6 +159,21 @@ pub fn write_tags(
     album: &str,
     cover: Option<Vec<u8>>,
 ) -> Result<(), String> {
+    let meta = crate::meta::Meta {
+        title: title.into(),
+        artist: artist.into(),
+        album: album.into(),
+        ..Default::default()
+    };
+    write_tags_full(path, &meta, cover)
+}
+
+/// Writes title, artist, album, year and (replacing any old one) the cover.
+pub fn write_tags_full(
+    path: &Path,
+    meta: &crate::meta::Meta,
+    cover: Option<Vec<u8>>,
+) -> Result<(), String> {
     use lofty::config::WriteOptions;
     use lofty::picture::{MimeType, Picture, PictureType};
     use lofty::tag::Tag;
@@ -168,14 +183,28 @@ pub fn write_tags(
         tagged.insert_tag(Tag::new(kind));
     }
     let tag = tagged.primary_tag_mut().ok_or("sin etiquetas")?;
-    tag.set_title(title.to_string());
-    tag.set_artist(artist.to_string());
-    tag.set_album(album.to_string());
+    tag.set_title(meta.title.clone());
+    tag.set_artist(meta.artist.clone());
+    if !meta.album.is_empty() {
+        tag.set_album(meta.album.clone());
+    }
+    if let Some(year) = meta.year {
+        tag.set_date(lofty::tag::items::Timestamp {
+            year,
+            ..Default::default()
+        });
+    }
     if let Some(data) = cover {
+        let mime = if data.starts_with(b"\x89PNG") {
+            MimeType::Png
+        } else {
+            MimeType::Jpeg
+        };
+        tag.remove_picture_type(PictureType::CoverFront);
         tag.push_picture(
             Picture::unchecked(data)
                 .pic_type(PictureType::CoverFront)
-                .mime_type(MimeType::Jpeg)
+                .mime_type(mime)
                 .build(),
         );
     }

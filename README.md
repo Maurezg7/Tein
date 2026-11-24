@@ -57,6 +57,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Buscador instantáneo en tu música
 - Favoritas y listas de reproducción propias
 - Portadas y etiquetas leídas de los archivos
+- **Completar datos y portada**: busca título, artista, álbum, año y portada y los guarda en el archivo (una canción o un artista/álbum/lista entero)
 
 </td>
 </tr>
@@ -71,6 +72,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Cada playlist se guarda en su carpeta `Música/Tein/<playlist>` y se crea como lista en la app
 - Archivos M4A con título, artista y portada
 - Se guardan en `Música/Tein` y aparecen solas en la biblioteca
+- Si YouTube corta una descarga (403), sigue con otro cliente desde donde quedó
 
 </td>
 <td width="50%" valign="top">
@@ -86,6 +88,21 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 </table>
 
 > Spotify y Apple Music protegen su audio con DRM. Tein lee los datos públicos del link (título y artista) y descarga el mismo tema desde YouTube.
+
+### Completar datos y portadas
+
+Tocá **⋮** en una canción (o mantené un artista, álbum o lista) y elegí **Completar datos y portada**. Tein usa el nombre del archivo o las etiquetas que ya tenga, limpia cosas como "(Official Video)" y busca en:
+
+| Fuente | Qué aporta | Clave |
+|---|---|---|
+| [iTunes Search](https://performance-partners.apple.com/search-api) | Título, artista, álbum, año y portada 600×600 | No |
+| [Deezer](https://developers.deezer.com/api) | Álbum y portada grande | No |
+| [MusicBrainz](https://musicbrainz.org) + [Cover Art Archive](https://coverartarchive.org) | Datos del lanzamiento original y portada | No |
+| [AcoustID](https://acoustid.org) | Reconoce la canción **por el sonido** (huella Chromaprint) | Sí |
+
+El reconocimiento por sonido se usa cuando el nombre no alcanza (por ejemplo `audio_123.mp3`). Se activa compilando con una clave gratuita de AcoustID: `ACOUSTID_KEY=tu_clave ./build-apk.sh`.
+
+En Android 11 o superior, para modificar canciones que no bajó Tein, la app abre el permiso **Acceso a todos los archivos** la primera vez. Activalo y volvé a tocar **Completar datos y portada**.
 
 ## Instalación
 
@@ -154,6 +171,7 @@ cargo test --lib -- --include-ignored  # incluye tests de red
 | Interfaz | [Slint](https://slint.dev) |
 | Audio | [Rodio](https://github.com/RustAudio/rodio) |
 | Etiquetas y portadas | [Lofty](https://github.com/Serial-ATA/lofty-rs) |
+| Huella de audio | [rusty-chromaprint](https://github.com/darksv/rusty-chromaprint) |
 | Red | [ureq](https://github.com/algesten/ureq) + rustls |
 | Android | NativeActivity + servicio de reproducción en Java |
 

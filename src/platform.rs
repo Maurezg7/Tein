@@ -15,6 +15,14 @@ pub fn poll_action() -> Option<i32> {
     None
 }
 
+#[cfg(not(target_os = "android"))]
+pub fn can_write_all() -> bool {
+    true
+}
+
+#[cfg(not(target_os = "android"))]
+pub fn ask_write_all() {}
+
 #[cfg(target_os = "android")]
 mod android {
     use jni::objects::{JClass, JObject, JValue};
@@ -81,7 +89,22 @@ mod android {
         with_bridge(|env, class| env.call_static_method(class, "poll", "()I", &[])?.i())
             .filter(|a| *a != 0)
     }
+
+    pub fn can_write_all() -> bool {
+        with_bridge(|env, class| {
+            env.call_static_method(class, "canWriteAll", "()Z", &[])?
+                .z()
+        })
+        .unwrap_or(true)
+    }
+
+    pub fn ask_write_all() {
+        with_bridge(|env, class| {
+            env.call_static_method(class, "askWriteAll", "()V", &[])?;
+            Ok(())
+        });
+    }
 }
 
 #[cfg(target_os = "android")]
-pub use android::{now_playing, poll_action};
+pub use android::{ask_write_all, can_write_all, now_playing, poll_action};
