@@ -55,7 +55,8 @@ pub fn init_android(app: &slint::android::AndroidApp) {
 
 #[cfg(target_os = "android")]
 fn is_writable(dir: &std::path::Path) -> bool {
-    let probe = dir.join(".tein_probe");
+    // Android 11+ only lets apps create audio files in Music/, so the probe must look like one.
+    let probe = dir.join(".tein_probe.m4a");
     let ok = std::fs::write(&probe, b"ok").is_ok();
     let _ = std::fs::remove_file(probe);
     ok

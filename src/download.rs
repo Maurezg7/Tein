@@ -66,7 +66,10 @@ fn run(job: &Job, on_update: &dyn Fn(Update)) -> Result<Track, String> {
     status("Buscando audio…", 0.0);
     let video_id = online::video_id_for(&job.track)?;
     let stream = youtube::audio_stream(&video_id)?;
-    let part = dest.with_extension("m4a.part");
+    let part = dest.with_file_name(format!(
+        ".{}.part.m4a",
+        dest.file_stem().unwrap_or_default().to_string_lossy()
+    ));
     let mb = stream.size as f32 / 1_048_576.0;
     let mut last = -1i32;
     let result = youtube::download(&stream, &part, &mut |p| {
