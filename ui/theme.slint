@@ -20,6 +20,17 @@ export global Palette {
         { name: "Frutiger Aurora", bg: #061a2e, bg-2: #0e5c63, surface: #0d2f4ae8, surface-2: #ffffff22, surface-3: #ffffff3a, accent: #5ef2c4, text: #f2fffb, muted: #a6d5d8, on-accent: #05332a, round: 1, gloss: true },
         { name: "Aero Oscuro", bg: #05080d, bg-2: #16283d, surface: #0f1722f0, surface-2: #ffffff1c, surface-3: #ffffff30, accent: #39a9ff, text: #f4f8ff, muted: #9fb4c9, on-accent: #ffffff, round: 1, gloss: true },
         { name: "Frutiger Metro", bg: #e9eef3, bg-2: #cfd8e2, surface: #ffffff, surface-2: #dfe6ee, surface-3: #c9d3df, accent: #0078d7, text: #1b2530, muted: #5c6b7a, on-accent: #ffffff, round: 0.2, gloss: false, light: true },
+        { name: "Amp Circuito", bg: #062b12, bg-2: #03160a, surface: #0b3d1c, surface-2: #115428, surface-3: #187036, accent: #ffe600, text: #7dfff0, muted: #58c9a0, on-accent: #062b12, round: 0, gloss: false },
+        { name: "Amp Búnker", bg: #2a2416, bg-2: #15120a, surface: #3a3220, surface-2: #4b412a, surface-3: #5f5336, accent: #ffb000, text: #b8ff5a, muted: #9a9462, on-accent: #1c1608, round: 0.12, gloss: false },
+        { name: "Amp 8-bit", bg: #c4e04a, bg-2: #a8c832, surface: #d4ec6a, surface-2: #b2d040, surface-3: #96b82e, accent: #2f4a12, text: #1f3208, muted: #48631c, on-accent: #d8f07a, round: 0, gloss: false, light: true },
+        { name: "Amp Terminal", bg: #000000, bg-2: #000a12, surface: #041018, surface-2: #082030, surface-3: #0c3048, accent: #ffe14d, text: #35e8ff, muted: #2a9fb5, on-accent: #000000, round: 0, gloss: false },
+        { name: "Amp Infierno", bg: #2b140c, bg-2: #120403, surface: #3d1c10, surface-2: #552616, surface-3: #70321c, accent: #ff2a12, text: #ffd9a8, muted: #c08a62, on-accent: #ffffff, round: 0.12, gloss: false },
+        { name: "Amp Glow", bg: #050008, bg-2: #1a0030, surface: #12051f, surface-2: #220a3a, surface-3: #341058, accent: #ff3df2, text: #e9c8ff, muted: #9a6fd0, on-accent: #14001f, round: 0.12, gloss: true },
+        { name: "Amp Denim", bg: #3d5f9a, bg-2: #243b66, surface: #48699fe8, surface-2: #5a7cb4, surface-3: #7090c6, accent: #f2c14e, text: #f4f7ff, muted: #c3d1ec, on-accent: #2a2008, round: 0.35, gloss: false },
+        { name: "Amp Biomecánico", bg: #2a2030, bg-2: #120c16, surface: #3a2d42, surface-2: #4d3c57, surface-3: #62506e, accent: #d9a3ff, text: #efe4f5, muted: #a892b3, on-accent: #241530, round: 0.5, gloss: true },
+        { name: "Amp Refresco", bg: #0f5a14, bg-2: #083008, surface: #187a1ee8, surface-2: #259a2a, surface-3: #34b838, accent: #f6f01e, text: #f8ffe6, muted: #c2e8a0, on-accent: #0c3a08, round: 0.7, gloss: true },
+        { name: "Amp Aventura", bg: #1f4a22, bg-2: #0e2410, surface: #2b5e2c, surface-2: #39763a, surface-3: #4a8f4a, accent: #f2c94c, text: #fff6d6, muted: #b8d0a0, on-accent: #2a1e04, round: 0.2, gloss: false },
+        { name: "Amp Acero", bg: #3a3d42, bg-2: #1c1e21, surface: #4a4e54, surface-2: #5c6168, surface-3: #70767e, accent: #6fb1ff, text: #f0f2f5, muted: #b0b6be, on-accent: #0c1a2a, round: 0.2, gloss: true },
     ];
     property <Theme> current: themes[min(max(theme, 0), themes.length - 1)];
     out property <color> bg: current.bg;
