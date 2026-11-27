@@ -15,7 +15,7 @@ pub const ACTION_RESCAN: i32 = 10;
 pub const ACTION_FOLDER: i32 = 11;
 pub const ACTION_IMAGE: i32 = 12;
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn now_playing(_title: &str, _artist: &str, _playing: bool, _pos: i64, _duration: i64) {}
 
 #[cfg(not(target_os = "android"))]
@@ -31,11 +31,17 @@ pub fn open_soundcloud(url: &str) -> bool {
     crate::online::soundcloud::is_link(url) && webbrowser::open(url).is_ok()
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[path = "desktop_picker.rs"]
 mod picker;
-#[cfg(not(target_os = "android"))]
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub use picker::{pick_folder, pick_image, poll_action, take_picked};
+
+#[cfg(target_os = "ios")]
+#[path = "ios.rs"]
+mod ios;
+#[cfg(target_os = "ios")]
+pub use ios::{init_ios, now_playing, pick_folder, pick_image, poll_action, take_picked};
 
 /// Root and app-owned folder of the removable SD card, if one is mounted.
 #[cfg(not(target_os = "android"))]

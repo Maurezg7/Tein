@@ -13,10 +13,15 @@ mod platform;
 mod player;
 mod store;
 
-#[cfg(all(test, not(target_os = "android")))]
+#[cfg(all(test, not(any(target_os = "android", target_os = "ios"))))]
 mod input_layout_tests;
 
 pub fn run_desktop() -> Result<(), slint::PlatformError> {
+    #[cfg(target_os = "ios")]
+    {
+        paths::init_ios().map_err(|e| slint::PlatformError::Other(e.to_string()))?;
+        platform::init_ios();
+    }
     app::run()
 }
 

@@ -1,4 +1,20 @@
 fn main() {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
+        let bridge = "packaging/apple/ios.m";
+        println!("cargo:rerun-if-changed={bridge}");
+        cc::Build::new()
+            .file(bridge)
+            .flag("-fobjc-arc")
+            .compile("tein_ios");
+        for framework in [
+            "UIKit",
+            "UniformTypeIdentifiers",
+            "AVFoundation",
+            "MediaPlayer",
+        ] {
+            println!("cargo:rustc-link-lib=framework={framework}");
+        }
+    }
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
         // Some native dependencies are C++ and expect the NDK's shared runtime.
         println!("cargo:rustc-link-lib=c++_shared");

@@ -56,3 +56,52 @@ jobs:
           name: Tein-macOS-${{ matrix.arch }}
           path: target/apple/*/*.zip
           if-no-files-found: error
+  ios:
+    name: iOS ${{ matrix.sdk }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk: iphonesimulator
+            target: aarch64-apple-ios-sim
+          - sdk: iphoneos
+            target: aarch64-apple-ios
+    runs-on: macos-15
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build for ${{ matrix.sdk }}
+        env:
+          SDK: ${{ matrix.sdk }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup update stable
+          rustup target add "$TARGET"
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          cd packaging/apple && xcodegen generate
+          xcodebuild -project Tein.xcodeproj -scheme Tein -configuration Release \
+            -sdk "$SDK" -arch arm64 -derivedDataPath "$RUNNER_TEMP/tein" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Verify package
+        env:
+          SDK: ${{ matrix.sdk }}
+        run: |
+          app="$RUNNER_TEMP/tein/Build/Products/Release-$SDK/Tein.app"
+          plutil -lint "$app/Info.plist"
+          lipo -verify_arch arm64 "$app/Tein"
+          if [[ $SDK == iphonesimulator ]]; then
+            codesign --force --sign - "$app"
+            python3 packaging/apple/simulator-smoke.py "$app"
+            ditto -c -k --keepParent "$app" Tein-iOS-Simulador.zip
+          fi
+      - uses: actions/upload-artifact@v4
+        if: matrix.sdk == 'iphonesimulator'
+        with:
+          name: Tein-iOS-Simulador
+          path: |
+            Tein-iOS-Simulador.zip
+            Tein-iPhone.png
+            Tein-iPad.png
+          if-no-files-found: error

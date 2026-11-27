@@ -172,7 +172,8 @@ fn strings(v: &[&str]) -> ModelRc<SharedString> {
 pub fn run() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
     ui.global::<State>()
-        .set_desktop(!cfg!(target_os = "android"));
+        .set_desktop(!cfg!(any(target_os = "android", target_os = "ios")));
+    ui.global::<State>().set_ios(cfg!(target_os = "ios"));
     UI_ATTACHED.store(true, Ordering::Release);
     UI.with(|u| *u.borrow_mut() = Some(ui.as_weak()));
     let settings = store::load_settings();
@@ -206,6 +207,12 @@ pub fn run() -> Result<(), slint::PlatformError> {
         core.library = library::load_cache();
         core.playlists = store::load_playlists();
         core.prefs = store::load_prefs();
+        #[cfg(target_os = "ios")]
+        if core.prefs.download_dir.as_deref().is_some_and(|p| {
+            crate::paths::documents_subdir("Documents".as_ref(), p.as_ref()).is_none()
+        }) {
+            core.prefs.download_dir = None;
+        }
         if let Some(dir) = &core.prefs.download_dir {
             crate::paths::set_download_dir(dir.into());
         }
@@ -1479,6 +1486,10 @@ fn show_eq(ui: &AppWindow, core: &Core) {
 
 /// Shows internal storage as people know it instead of the raw mount point.
 fn folder_label(dir: &std::path::Path) -> String {
+    #[cfg(target_os = "ios")]
+    if let Ok(rest) = dir.strip_prefix("Documents") {
+        return format!("Archivos / Tein / {}", rest.display());
+    }
     let text = dir.to_string_lossy();
     match text.strip_prefix("/storage/emulated/0/") {
         Some(rest) => format!("Memoria interna/{rest}"),
@@ -1492,7 +1503,11 @@ fn folder_label(dir: &std::path::Path) -> String {
 fn choose_folder(ui: &AppWindow, core: &mut Core) {
     let mut actions = vec![(
         MenuAction::FolderDefault,
-        "Carpeta predeterminada · Música/Tein",
+        if cfg!(target_os = "ios") {
+            "Archivos · Tein/Música"
+        } else {
+            "Carpeta predeterminada · Música/Tein"
+        },
     )];
     if crate::platform::sd_card().is_some() {
         actions.push((MenuAction::FolderSd, "Tarjeta SD"));
@@ -1505,6 +1520,16 @@ fn choose_folder(ui: &AppWindow, core: &mut Core) {
 }
 
 fn apply_download_dir(ui: &AppWindow, core: &mut Core, dir: std::path::PathBuf) {
+    #[cfg(target_os = "ios")]
+    let Some(dir) = crate::paths::documents_subdir("Documents".as_ref(), &dir) else {
+        core.pending_downloads = None;
+        toast(
+            ui,
+            core,
+            "Elegí una carpeta dentro de Tein en Archivos".into(),
+        );
+        return;
+    };
     if std::fs::create_dir_all(&dir).is_err() || !crate::paths::is_writable(&dir) {
         if crate::platform::can_write_all() {
             toast(
@@ -1689,8 +1714,8 @@ fn use_picked_image(ui: &AppWindow, core: &mut Core, path: String, target: Cover
             }
         }
     }
-    // Only Android returns an app-owned temporary copy.
-    #[cfg(target_os = "android")]
+    // The mobile pickers return an app-owned copy, never the original.
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     let _ = std::fs::remove_file(path);
 }
 

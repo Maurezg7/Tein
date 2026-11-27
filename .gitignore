@@ -7,3 +7,5 @@
 *.keystore
 *.jks
 /target-*
+/packaging/apple/Tein.xcodeproj/
+/packaging/apple/Generated-Info.plist
