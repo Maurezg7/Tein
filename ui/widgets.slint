@@ -34,6 +34,27 @@ export component IconButton inherits Rectangle {
     }
 }
 
+component Figure inherits Path {
+    in property <float> strength: 0.1;
+    commands: Palette.shape;
+    fill: Palette.accent.with-alpha(root.strength);
+    fill-rule: evenodd;
+    viewbox-width: 100;
+    viewbox-height: 100;
+    height: self.width;
+}
+
+// The current theme's figure scattered behind the whole app.
+export component Decor inherits Rectangle {
+    property <length> u: min(root.width, root.height);
+    clip: true;
+    Figure { x: root.width - self.width * 0.72; y: root.height * 0.06; width: root.u * 0.62; strength: 0.11; }
+    Figure { x: -self.width * 0.3; y: root.height * 0.56; width: root.u * 0.78; strength: 0.08; }
+    Figure { x: root.width * 0.12; y: root.height * 0.3; width: root.u * 0.16; strength: 0.14; }
+    Figure { x: root.width * 0.7; y: root.height * 0.47; width: root.u * 0.2; strength: 0.12; }
+    Figure { x: root.width * 0.52; y: root.height * 0.8; width: root.u * 0.12; strength: 0.14; }
+}
+
 // Glassy highlight of the Frutiger Aero era.
 export component Gloss inherits Rectangle {
     in property <length> radius;

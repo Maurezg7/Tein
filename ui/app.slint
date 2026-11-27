@@ -1,6 +1,6 @@
 import { ListView, Spinner } from "std-widgets.slint";
 import { Palette, Icons } from "theme.slint";
-import { Icon, IconButton, Chip, PillButton, Cover, Bar, ListRow, Card, InputField, EqBars } from "widgets.slint";
+import { Decor, Icon, IconButton, Chip, PillButton, Cover, Bar, ListRow, Card, InputField, EqBars } from "widgets.slint";
 
 export struct TrackItem { title: string, subtitle: string, trailing: string, playing: bool, art: image, has-art: bool }
 export struct GroupItem { name: string, info: string, art: image, has-art: bool }
@@ -1353,6 +1353,7 @@ export component AppWindow inherits Window {
     preferred-height: 820px;
     default-font-size: 14px;
 
+    Decor { }
     HorizontalLayout {
         x: 0;
         width: parent.width;

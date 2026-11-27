@@ -1,36 +1,81 @@
-export struct Theme { name: string, bg: color, bg-2: color, surface: color, surface-2: color, surface-3: color, accent: color, text: color, muted: color, on-accent: color, round: float, gloss: bool, light: bool }
+// Background figures, drawn in a 100x100 box with the even-odd rule.
+export global Shapes {
+    out property <string> note: "M38 8v52a16 13 0 1 0 10 12V30l34-8v30a16 13 0 1 0 10 12V0z";
+    out property <string> bars: "M5 60h12v40h-12zM24 30h12v70h-12zM43 10h12v90h-12zM62 40h12v60h-12zM81 55h12v45h-12z";
+    out property <string> bubble: "M4 50a46 46 0 1 0 92 0a46 46 0 1 0 -92 0zM10 50a40 40 0 1 0 80 0a40 40 0 1 0 -80 0zM22 34a12 7 -40 1 0 18 -14a12 7 -40 1 0 -18 14z";
+    out property <string> sparkle: "M50 0Q55 45 100 50Q55 55 50 100Q45 55 0 50Q45 45 50 0z";
+    out property <string> star: "M50.0 2.0 L61.2 34.6 L95.7 35.2 L68.1 55.9 L78.2 88.8 L50.0 69.0 L21.8 88.8 L31.9 55.9 L4.3 35.2 L38.8 34.6z";
+    out property <string> bolt: "M58 0L18 56L44 56L34 100L82 38L54 38z";
+    out property <string> web: "M98.0 50.0 L83.9 83.9 L50.0 98.0 L16.1 83.9 L2.0 50.0 L16.1 16.1 L50.0 2.0 L83.9 16.1zM95.5 50.0 L82.2 82.2 L50.0 95.5 L17.8 82.2 L4.5 50.0 L17.8 17.8 L50.0 4.5 L82.2 17.8zM84.0 50.0 L74.0 74.0 L50.0 84.0 L26.0 74.0 L16.0 50.0 L26.0 26.0 L50.0 16.0 L74.0 26.0zM81.5 50.0 L72.3 72.3 L50.0 81.5 L27.7 72.3 L18.5 50.0 L27.7 27.7 L50.0 18.5 L72.3 27.7zM70.0 50.0 L64.1 64.1 L50.0 70.0 L35.9 64.1 L30.0 50.0 L35.9 35.9 L50.0 30.0 L64.1 35.9zM67.5 50.0 L62.4 62.4 L50.0 67.5 L37.6 62.4 L32.5 50.0 L37.6 37.6 L50.0 32.5 L62.4 37.6zM50.0 51.2 L98.0 51.2 L98.0 48.8 L50.0 48.8zM49.2 50.8 L83.1 84.8 L84.8 83.1 L50.8 49.2zM48.8 50.0 L48.8 98.0 L51.2 98.0 L51.2 50.0zM49.2 49.2 L15.2 83.1 L16.9 84.8 L50.8 50.8zM50.0 48.8 L2.0 48.8 L2.0 51.2 L50.0 51.2zM50.8 49.2 L16.9 15.2 L15.2 16.9 L49.2 50.8zM51.2 50.0 L51.2 2.0 L48.8 2.0 L48.8 50.0zM50.8 50.8 L84.8 16.9 L83.1 15.2 L49.2 49.2z";
+    out property <string> burst: "M98.0 50.0 L79.0 57.8 L91.6 74.0 L71.2 71.2 L74.0 91.6 L57.8 79.0 L50.0 98.0 L42.2 79.0 L26.0 91.6 L28.8 71.2 L8.4 74.0 L21.0 57.8 L2.0 50.0 L21.0 42.2 L8.4 26.0 L28.8 28.8 L26.0 8.4 L42.2 21.0 L50.0 2.0 L57.8 21.0 L74.0 8.4 L71.2 28.8 L91.6 26.0 L79.0 42.2z";
+    out property <string> sun: "M21.3 6h57.3v11h-57.3zM9.7 19h80.7v10h-80.7zM3.9 32h92.1v9h-92.1zM2.0 45h96.0v8h-96.0zM3.4 58h93.2v7h-93.2zM8.4 71h83.1v6h-83.1zM18.8 84h62.3v5h-62.3z";
+    out property <string> pixel: "M0 0h20v20h-20zM40 0h20v20h-20zM80 0h20v20h-20zM20 20h20v20h-20zM60 20h20v20h-20zM0 40h20v20h-20zM40 40h20v20h-20zM80 40h20v20h-20zM20 60h20v20h-20zM60 60h20v20h-20zM0 80h20v20h-20zM40 80h20v20h-20zM80 80h20v20h-20z";
+    out property <string> hex: "M91.6 74.0 L50.0 98.0 L8.4 74.0 L8.4 26.0 L50.0 2.0 L91.6 26.0zM82.9 69.0 L50.0 88.0 L17.1 69.0 L17.1 31.0 L50.0 12.0 L82.9 31.0zM69.1 61.0 L50.0 72.0 L30.9 61.0 L30.9 39.0 L50.0 28.0 L69.1 39.0z";
+    out property <string> ring: "M2 50a48 48 0 1 0 96 0a48 48 0 1 0 -96 0zM20 50a30 30 0 1 0 60 0a30 30 0 1 0 -60 0z";
+    out property <string> hill: "M0 100Q25 35 55 62Q75 80 100 50V100z";
+    out property <string> moon: "M66 4A47 47 0 1 0 96 66A38 38 0 1 1 66 4z";
+    out property <string> bat: "M50 30L44 16L42 32Q30 20 2 22Q22 34 20 54Q32 42 40 58Q46 50 50 72Q54 50 60 58Q68 42 80 54Q78 34 98 22Q70 20 58 32L56 16z";
+    out property <string> sword: "M50 0L58 14V66H76V74H56V92H44V74H24V66H42V14z";
+    out property <string> shield: "M2 50a48 48 0 1 0 96 0a48 48 0 1 0 -96 0zM12 50a38 38 0 1 0 76 0a38 38 0 1 0 -76 0zM22 50a28 28 0 1 0 56 0a28 28 0 1 0 -56 0zM50.0 24.0 L55.9 41.9 L74.7 42.0 L59.5 53.1 L65.3 71.0 L50.0 60.0 L34.7 71.0 L40.5 53.1 L25.3 42.0 L44.1 41.9z";
+    out property <string> diamond: "M22 10H78L100 36L50 96L0 36zM30 20L16 36L50 78L84 36L70 20z";
+    out property <string> reactor: "M2 50a48 48 0 1 0 96 0a48 48 0 1 0 -96 0zM12 50a38 38 0 1 0 76 0a38 38 0 1 0 -76 0zM50.0 84.0 L20.6 33.0 L79.4 33.0zM50.0 70.0 L32.7 40.0 L67.3 40.0z";
+    out property <string> prompt: "M5 20L45 50L5 80V62L22 50L5 38zM50 72h45v12h-45z";
+    out property <string> egg: "M50 2C82 2 92 60 92 70A42 30 0 0 1 8 70C8 60 18 2 50 2zM48 14h4v24h24v4h-24v24h-4v-24h-24v-4h24z";
+    out property <string> circuit: "M8 20h50v4h-50zM54 20h4v40h-4zM54 56h36v4h-36zM20 60h4v30h-4zM20 86h40v4h-40zM1 22a7 7 0 1 0 14 0a7 7 0 1 0 -14 0zM83 58a7 7 0 1 0 14 0a7 7 0 1 0 -14 0zM15 58a7 7 0 1 0 14 0a7 7 0 1 0 -14 0zM55 88a7 7 0 1 0 14 0a7 7 0 1 0 -14 0zM70 10h18v18h-18z";
+}
+
+export struct Theme { name: string, bg: color, bg-2: color, surface: color, surface-2: color, surface-3: color, accent: color, text: color, muted: color, on-accent: color, round: float, gloss: bool, light: bool, shape: string }
 
 export global Palette {
     in-out property <int> theme: 0;
     out property <[Theme]> themes: [
-        { name: "Violeta", bg: #0f0f13, bg-2: #0f0f13, surface: #1a1a21, surface-2: #24242d, surface-3: #30303b, accent: #8b5cf6, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
-        { name: "Océano", bg: #0b1118, bg-2: #0b1118, surface: #141d28, surface-2: #1d2937, surface-3: #283748, accent: #3b82f6, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
-        { name: "Esmeralda", bg: #0b120f, bg-2: #0b120f, surface: #14201a, surface-2: #1d2c25, surface-3: #283a31, accent: #10b981, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
-        { name: "Atardecer", bg: #14100c, bg-2: #14100c, surface: #211a14, surface-2: #2d241c, surface-3: #3b3026, accent: #f97316, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
-        { name: "Rosa", bg: #140d11, bg-2: #140d11, surface: #21161c, surface-2: #2d1f27, surface-3: #3b2a33, accent: #ec4899, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
-        { name: "Negro puro", bg: #000000, bg-2: #000000, surface: #101012, surface-2: #1a1a1e, surface-3: #26262b, accent: #e5484d, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
-        { name: "Winamp Clásico", bg: #1c1c2a, bg-2: #12121c, surface: #2a2a3f, surface-2: #3a3a58, surface-3: #4c4c72, accent: #e8b923, text: #00f000, muted: #7fb37f, on-accent: #1c1c2a, round: 0.12, gloss: false },
-        { name: "Winamp Bento", bg: #2b3540, bg-2: #1a2129, surface: #3a4756, surface-2: #4a5a6c, surface-3: #5d7085, accent: #7fd4ff, text: #e8f1f8, muted: #9fb2c4, on-accent: #10202c, round: 0.3, gloss: true },
-        { name: "Amp Matrix", bg: #000000, bg-2: #001a06, surface: #031207, surface-2: #06220d, surface-3: #0a3314, accent: #00ff41, text: #00ff41, muted: #0b9e31, on-accent: #000000, round: 0, gloss: false },
-        { name: "Amp Neón", bg: #12002b, bg-2: #2b0040, surface: #24104a, surface-2: #3a1a6e, surface-3: #522692, accent: #ff2bd6, text: #5ff4ff, muted: #c08cff, on-accent: #12002b, round: 0.12, gloss: false },
-        { name: "Amp Lava", bg: #190000, bg-2: #3d0c00, surface: #2c0a05, surface-2: #48140a, surface-3: #662010, accent: #ffb300, text: #ffe9c2, muted: #d98a5a, on-accent: #2a0800, round: 0.12, gloss: true },
-        { name: "Amp Hielo", bg: #04161f, bg-2: #0a3242, surface: #0c2836, surface-2: #143d50, surface-3: #1e556e, accent: #b8f4ff, text: #e6fbff, muted: #7fb8c9, on-accent: #04222e, round: 0.12, gloss: true },
-        { name: "Frutiger Aero", bg: #0f7fd6, bg-2: #3faa4e, surface: #1877c4e0, surface-2: #ffffff38, surface-3: #ffffff55, accent: #7ddc3c, text: #ffffff, muted: #e3f4ff, on-accent: #0b3d12, round: 1, gloss: true },
-        { name: "Frutiger Eco", bg: #1f8f3c, bg-2: #5fae2e, surface: #278a3ce0, surface-2: #ffffff38, surface-3: #ffffff55, accent: #19c6e6, text: #ffffff, muted: #eefbe0, on-accent: #053540, round: 1, gloss: true },
-        { name: "Frutiger Aurora", bg: #061a2e, bg-2: #0e5c63, surface: #0d2f4ae8, surface-2: #ffffff22, surface-3: #ffffff3a, accent: #5ef2c4, text: #f2fffb, muted: #a6d5d8, on-accent: #05332a, round: 1, gloss: true },
-        { name: "Aero Oscuro", bg: #05080d, bg-2: #16283d, surface: #0f1722f0, surface-2: #ffffff1c, surface-3: #ffffff30, accent: #39a9ff, text: #f4f8ff, muted: #9fb4c9, on-accent: #ffffff, round: 1, gloss: true },
-        { name: "Frutiger Metro", bg: #e9eef3, bg-2: #cfd8e2, surface: #ffffff, surface-2: #dfe6ee, surface-3: #c9d3df, accent: #0078d7, text: #1b2530, muted: #5c6b7a, on-accent: #ffffff, round: 0.2, gloss: false, light: true },
-        { name: "Amp Circuito", bg: #062b12, bg-2: #03160a, surface: #0b3d1c, surface-2: #115428, surface-3: #187036, accent: #ffe600, text: #7dfff0, muted: #58c9a0, on-accent: #062b12, round: 0, gloss: false },
-        { name: "Amp Búnker", bg: #2a2416, bg-2: #15120a, surface: #3a3220, surface-2: #4b412a, surface-3: #5f5336, accent: #ffb000, text: #b8ff5a, muted: #9a9462, on-accent: #1c1608, round: 0.12, gloss: false },
-        { name: "Amp 8-bit", bg: #c4e04a, bg-2: #a8c832, surface: #d4ec6a, surface-2: #b2d040, surface-3: #96b82e, accent: #2f4a12, text: #1f3208, muted: #48631c, on-accent: #d8f07a, round: 0, gloss: false, light: true },
-        { name: "Amp Terminal", bg: #000000, bg-2: #000a12, surface: #041018, surface-2: #082030, surface-3: #0c3048, accent: #ffe14d, text: #35e8ff, muted: #2a9fb5, on-accent: #000000, round: 0, gloss: false },
-        { name: "Amp Infierno", bg: #2b140c, bg-2: #120403, surface: #3d1c10, surface-2: #552616, surface-3: #70321c, accent: #ff2a12, text: #ffd9a8, muted: #c08a62, on-accent: #ffffff, round: 0.12, gloss: false },
-        { name: "Amp Glow", bg: #050008, bg-2: #1a0030, surface: #12051f, surface-2: #220a3a, surface-3: #341058, accent: #ff3df2, text: #e9c8ff, muted: #9a6fd0, on-accent: #14001f, round: 0.12, gloss: true },
-        { name: "Amp Denim", bg: #3d5f9a, bg-2: #243b66, surface: #48699fe8, surface-2: #5a7cb4, surface-3: #7090c6, accent: #f2c14e, text: #f4f7ff, muted: #c3d1ec, on-accent: #2a2008, round: 0.35, gloss: false },
-        { name: "Amp Biomecánico", bg: #2a2030, bg-2: #120c16, surface: #3a2d42, surface-2: #4d3c57, surface-3: #62506e, accent: #d9a3ff, text: #efe4f5, muted: #a892b3, on-accent: #241530, round: 0.5, gloss: true },
-        { name: "Amp Refresco", bg: #0f5a14, bg-2: #083008, surface: #187a1ee8, surface-2: #259a2a, surface-3: #34b838, accent: #f6f01e, text: #f8ffe6, muted: #c2e8a0, on-accent: #0c3a08, round: 0.7, gloss: true },
-        { name: "Amp Aventura", bg: #1f4a22, bg-2: #0e2410, surface: #2b5e2c, surface-2: #39763a, surface-3: #4a8f4a, accent: #f2c94c, text: #fff6d6, muted: #b8d0a0, on-accent: #2a1e04, round: 0.2, gloss: false },
-        { name: "Amp Acero", bg: #3a3d42, bg-2: #1c1e21, surface: #4a4e54, surface-2: #5c6168, surface-3: #70767e, accent: #6fb1ff, text: #f0f2f5, muted: #b0b6be, on-accent: #0c1a2a, round: 0.2, gloss: true },
+        { name: "Violeta", bg: #0f0f13, bg-2: #0f0f13, surface: #1a1a21, surface-2: #24242d, surface-3: #30303b, accent: #8b5cf6, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false, shape: Shapes.note },
+        { name: "Océano", bg: #0b1118, bg-2: #0b1118, surface: #141d28, surface-2: #1d2937, surface-3: #283748, accent: #3b82f6, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false, shape: Shapes.note },
+        { name: "Esmeralda", bg: #0b120f, bg-2: #0b120f, surface: #14201a, surface-2: #1d2c25, surface-3: #283a31, accent: #10b981, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false, shape: Shapes.note },
+        { name: "Atardecer", bg: #14100c, bg-2: #14100c, surface: #211a14, surface-2: #2d241c, surface-3: #3b3026, accent: #f97316, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false, shape: Shapes.note },
+        { name: "Rosa", bg: #140d11, bg-2: #140d11, surface: #21161c, surface-2: #2d1f27, surface-3: #3b2a33, accent: #ec4899, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false, shape: Shapes.note },
+        { name: "Negro puro", bg: #000000, bg-2: #000000, surface: #101012, surface-2: #1a1a1e, surface-3: #26262b, accent: #e5484d, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false, shape: Shapes.note },
+        { name: "Winamp Clásico", bg: #1c1c2a, bg-2: #12121c, surface: #2a2a3f, surface-2: #3a3a58, surface-3: #4c4c72, accent: #e8b923, text: #00f000, muted: #7fb37f, on-accent: #1c1c2a, round: 0.12, gloss: false, shape: Shapes.bars },
+        { name: "Winamp Bento", bg: #2b3540, bg-2: #1a2129, surface: #3a4756, surface-2: #4a5a6c, surface-3: #5d7085, accent: #7fd4ff, text: #e8f1f8, muted: #9fb2c4, on-accent: #10202c, round: 0.3, gloss: true, shape: Shapes.bars },
+        { name: "Amp Matrix", bg: #000000, bg-2: #001a06, surface: #031207, surface-2: #06220d, surface-3: #0a3314, accent: #00ff41, text: #00ff41, muted: #0b9e31, on-accent: #000000, round: 0, gloss: false, shape: Shapes.pixel },
+        { name: "Amp Neón", bg: #12002b, bg-2: #2b0040, surface: #24104a, surface-2: #3a1a6e, surface-3: #522692, accent: #ff2bd6, text: #5ff4ff, muted: #c08cff, on-accent: #12002b, round: 0.12, gloss: false, shape: Shapes.bolt },
+        { name: "Amp Lava", bg: #190000, bg-2: #3d0c00, surface: #2c0a05, surface-2: #48140a, surface-3: #662010, accent: #ffb300, text: #ffe9c2, muted: #d98a5a, on-accent: #2a0800, round: 0.12, gloss: true, shape: Shapes.burst },
+        { name: "Amp Hielo", bg: #04161f, bg-2: #0a3242, surface: #0c2836, surface-2: #143d50, surface-3: #1e556e, accent: #b8f4ff, text: #e6fbff, muted: #7fb8c9, on-accent: #04222e, round: 0.12, gloss: true, shape: Shapes.sparkle },
+        { name: "Frutiger Aero", bg: #0f7fd6, bg-2: #3faa4e, surface: #1877c4e0, surface-2: #ffffff38, surface-3: #ffffff55, accent: #7ddc3c, text: #ffffff, muted: #e3f4ff, on-accent: #0b3d12, round: 1, gloss: true, shape: Shapes.bubble },
+        { name: "Frutiger Eco", bg: #1f8f3c, bg-2: #5fae2e, surface: #278a3ce0, surface-2: #ffffff38, surface-3: #ffffff55, accent: #19c6e6, text: #ffffff, muted: #eefbe0, on-accent: #053540, round: 1, gloss: true, shape: Shapes.bubble },
+        { name: "Frutiger Aurora", bg: #061a2e, bg-2: #0e5c63, surface: #0d2f4ae8, surface-2: #ffffff22, surface-3: #ffffff3a, accent: #5ef2c4, text: #f2fffb, muted: #a6d5d8, on-accent: #05332a, round: 1, gloss: true, shape: Shapes.bubble },
+        { name: "Aero Oscuro", bg: #05080d, bg-2: #16283d, surface: #0f1722f0, surface-2: #ffffff1c, surface-3: #ffffff30, accent: #39a9ff, text: #f4f8ff, muted: #9fb4c9, on-accent: #ffffff, round: 1, gloss: true, shape: Shapes.bubble },
+        { name: "Frutiger Metro", bg: #e9eef3, bg-2: #cfd8e2, surface: #ffffff, surface-2: #dfe6ee, surface-3: #c9d3df, accent: #0078d7, text: #1b2530, muted: #5c6b7a, on-accent: #ffffff, round: 0.2, gloss: false, light: true, shape: Shapes.pixel },
+        { name: "Amp Circuito", bg: #062b12, bg-2: #03160a, surface: #0b3d1c, surface-2: #115428, surface-3: #187036, accent: #ffe600, text: #7dfff0, muted: #58c9a0, on-accent: #062b12, round: 0, gloss: false, shape: Shapes.circuit },
+        { name: "Amp Búnker", bg: #2a2416, bg-2: #15120a, surface: #3a3220, surface-2: #4b412a, surface-3: #5f5336, accent: #ffb000, text: #b8ff5a, muted: #9a9462, on-accent: #1c1608, round: 0.12, gloss: false, shape: Shapes.reactor },
+        { name: "Amp 8-bit", bg: #c4e04a, bg-2: #a8c832, surface: #d4ec6a, surface-2: #b2d040, surface-3: #96b82e, accent: #2f4a12, text: #1f3208, muted: #48631c, on-accent: #d8f07a, round: 0, gloss: false, light: true, shape: Shapes.pixel },
+        { name: "Amp Terminal", bg: #000000, bg-2: #000a12, surface: #041018, surface-2: #082030, surface-3: #0c3048, accent: #ffe14d, text: #35e8ff, muted: #2a9fb5, on-accent: #000000, round: 0, gloss: false, shape: Shapes.prompt },
+        { name: "Amp Infierno", bg: #2b140c, bg-2: #120403, surface: #3d1c10, surface-2: #552616, surface-3: #70321c, accent: #ff2a12, text: #ffd9a8, muted: #c08a62, on-accent: #ffffff, round: 0.12, gloss: false, shape: Shapes.burst },
+        { name: "Amp Glow", bg: #050008, bg-2: #1a0030, surface: #12051f, surface-2: #220a3a, surface-3: #341058, accent: #ff3df2, text: #e9c8ff, muted: #9a6fd0, on-accent: #14001f, round: 0.12, gloss: true, shape: Shapes.sun },
+        { name: "Amp Denim", bg: #3d5f9a, bg-2: #243b66, surface: #48699fe8, surface-2: #5a7cb4, surface-3: #7090c6, accent: #f2c14e, text: #f4f7ff, muted: #c3d1ec, on-accent: #2a2008, round: 0.35, gloss: false, shape: Shapes.star },
+        { name: "Amp Biomecánico", bg: #2a2030, bg-2: #120c16, surface: #3a2d42, surface-2: #4d3c57, surface-3: #62506e, accent: #d9a3ff, text: #efe4f5, muted: #a892b3, on-accent: #241530, round: 0.5, gloss: true, shape: Shapes.hex },
+        { name: "Amp Refresco", bg: #0f5a14, bg-2: #083008, surface: #187a1ee8, surface-2: #259a2a, surface-3: #34b838, accent: #f6f01e, text: #f8ffe6, muted: #c2e8a0, on-accent: #0c3a08, round: 0.7, gloss: true, shape: Shapes.bubble },
+        { name: "Amp Aventura", bg: #1f4a22, bg-2: #0e2410, surface: #2b5e2c, surface-2: #39763a, surface-3: #4a8f4a, accent: #f2c94c, text: #fff6d6, muted: #b8d0a0, on-accent: #2a1e04, round: 0.2, gloss: false, shape: Shapes.sword },
+        { name: "Amp Acero", bg: #3a3d42, bg-2: #1c1e21, surface: #4a4e54, surface-2: #5c6168, surface-3: #70767e, accent: #6fb1ff, text: #f0f2f5, muted: #b0b6be, on-accent: #0c1a2a, round: 0.2, gloss: true, shape: Shapes.hex },
+        { name: "Sega 16-bit", bg: #0038a8, bg-2: #001a5c, surface: #0a48c8e8, surface-2: #1c5cdc, surface-3: #3474f0, accent: #ffd400, text: #ffffff, muted: #b8ccff, on-accent: #001a5c, round: 0.12, gloss: false, shape: Shapes.ring },
+        { name: "Windows XP", bg: #3a6ea5, bg-2: #5a9e3a, surface: #245edce8, surface-2: #3c7cf0, surface-3: #5a96ff, accent: #3cb43c, text: #ffffff, muted: #d6e4ff, on-accent: #ffffff, round: 0.45, gloss: true, shape: Shapes.hill },
+        { name: "XP Luna", bg: #ece9d8, bg-2: #d8d2bd, surface: #ffffff, surface-2: #dfe8f6, surface-3: #c1d2ee, accent: #245edc, text: #1a1a1a, muted: #5a5a5a, on-accent: #ffffff, round: 0.3, gloss: true, light: true, shape: Shapes.hill },
+        { name: "Retro 70s", bg: #3b2416, bg-2: #22130a, surface: #4d3020, surface-2: #63402b, surface-3: #7a5238, accent: #f2a03d, text: #f8e8c8, muted: #c9a882, on-accent: #2a1608, round: 0.6, gloss: false, shape: Shapes.sun },
+        { name: "Retro Synthwave", bg: #1a0b3b, bg-2: #3d0a4f, surface: #2a1458e8, surface-2: #3d1d78, surface-3: #52289a, accent: #ff6ec7, text: #fdf3ff, muted: #b99be0, on-accent: #1a0b3b, round: 0.3, gloss: true, shape: Shapes.sun },
+        { name: "Dark Fantasy", bg: #0d0b10, bg-2: #1a0c12, surface: #1a161f, surface-2: #27212d, surface-3: #362e3d, accent: #b08d3c, text: #d9d0bf, muted: #8a8072, on-accent: #120d05, round: 0.2, gloss: false, shape: Shapes.sword },
+        { name: "Light Fantasy", bg: #f6efdc, bg-2: #e3d6f0, surface: #fffaf0, surface-2: #efe4c8, surface-3: #e0d2ae, accent: #8a5fd0, text: #3a2e4a, muted: #7a6c88, on-accent: #ffffff, round: 1, gloss: true, light: true, shape: Shapes.sparkle },
+        { name: "Xenomorfo", bg: #020604, bg-2: #06140c, surface: #081208, surface-2: #0e1e12, surface-3: #162c1c, accent: #8cff3a, text: #bfe8c8, muted: #5e8a6c, on-accent: #020604, round: 0.3, gloss: true, shape: Shapes.egg },
+        { name: "Nostromo", bg: #0a0f0a, bg-2: #000000, surface: #101a10, surface-2: #182818, surface-3: #223822, accent: #ffb000, text: #39ff6a, muted: #2a9a48, on-accent: #000000, round: 0, gloss: false, shape: Shapes.hex },
+        { name: "Terror", bg: #0a0000, bg-2: #240000, surface: #160606, surface-2: #240a0a, surface-3: #361010, accent: #c40000, text: #e8dcd0, muted: #8a6a62, on-accent: #ffffff, round: 0.12, gloss: false, shape: Shapes.web },
+        { name: "Terror Niebla", bg: #15181a, bg-2: #07080a, surface: #1f2427, surface-2: #2a3034, surface-3: #383f44, accent: #9fb3b0, text: #d8dedc, muted: #7d8a88, on-accent: #0c1012, round: 0.2, gloss: false, shape: Shapes.moon },
+        { name: "Héroe Arácnido", bg: #b01020, bg-2: #10205a, surface: #c41a2ce8, surface-2: #1a2f7a, surface-3: #26409c, accent: #ffffff, text: #ffffff, muted: #f0c4c8, on-accent: #b01020, round: 0.5, gloss: false, shape: Shapes.web },
+        { name: "Caballero Nocturno", bg: #0a0b0e, bg-2: #1c1f26, surface: #16181d, surface-2: #22252c, surface-3: #30343d, accent: #ffd60a, text: #e6e8ec, muted: #8a8f9a, on-accent: #0a0b0e, round: 0.2, gloss: false, shape: Shapes.bat },
+        { name: "Hombre de Acero", bg: #0b3d91, bg-2: #06224f, surface: #1250b8e8, surface-2: #1c62d4, surface-3: #2c78ee, accent: #e61e2a, text: #ffffff, muted: #bcd0f4, on-accent: #ffffff, round: 0.5, gloss: true, shape: Shapes.diamond },
+        { name: "Armadura de Hierro", bg: #7a0c0c, bg-2: #2e0404, surface: #8f1414e8, surface-2: #a82020, surface-3: #c23030, accent: #ffc233, text: #fff3d6, muted: #e0b08a, on-accent: #3a0606, round: 0.3, gloss: true, shape: Shapes.reactor },
+        { name: "Titán Esmeralda", bg: #1f6b1a, bg-2: #2a0f4a, surface: #2a8024e8, surface-2: #4a1f80, surface-3: #5f2aa0, accent: #b6ff3a, text: #f4ffe8, muted: #bfdcae, on-accent: #1a2a08, round: 0.6, gloss: false, shape: Shapes.burst },
+        { name: "Capitán Escudo", bg: #12306e, bg-2: #0a1a3e, surface: #1a3e88, surface-2: #244ea6, surface-3: #3060c2, accent: #e02030, text: #ffffff, muted: #b8c8e8, on-accent: #ffffff, round: 0.6, gloss: false, shape: Shapes.shield },
+        { name: "Velocista", bg: #c81414, bg-2: #7a0808, surface: #da2020e8, surface-2: #ee3a2a, surface-3: #ff5a40, accent: #ffd60a, text: #ffffff, muted: #ffd0c4, on-accent: #7a0808, round: 0.4, gloss: true, shape: Shapes.bolt },
+        { name: "Amazona", bg: #8a1220, bg-2: #0c1e5a, surface: #a01a2ae8, surface-2: #16307a, surface-3: #20409a, accent: #f2c230, text: #fff6dc, muted: #e8b8b0, on-accent: #3a1004, round: 0.5, gloss: true, shape: Shapes.star },
     ];
     property <Theme> current: themes[min(max(theme, 0), themes.length - 1)];
     out property <color> bg: current.bg;
@@ -49,6 +94,7 @@ export global Palette {
     // Multiplies corner radii: 1 is round, 0 is square like a classic skin.
     out property <float> round: current.round;
     out property <bool> gloss: current.gloss;
+    out property <string> shape: current.shape;
     // Cover-derived colours are dark; light themes need them pastel to keep text readable.
     pure public function tint(c: color) -> color { return current.light ? c.mix(#ffffff, 0.3) : c; }
     pure public function tint-deep(c: color) -> color { return current.light ? c.mix(#ffffff, 0.15) : c.darker(60%); }

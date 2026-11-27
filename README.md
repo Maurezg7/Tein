@@ -39,6 +39,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
   <img src="docs/screenshots/temas.png" width="98%" alt="Diseños Amp Neón, Amp Lava, Frutiger Aero, Frutiger Aurora y Frutiger Metro">
   <br>
   <img src="docs/screenshots/temas-amp.png" width="98%" alt="Diseños Amp Circuito, Amp 8-bit, Amp Terminal, Amp Infierno y Amp Refresco">
+  <img src="docs/screenshots/temas-heroes.png" width="98%" alt="Diseños Héroe Arácnido, Caballero Nocturno, Hombre de Acero y Armadura de Hierro con sus figuras de fondo">
   <br><sub>En tablets: barra lateral y reproductor siempre visible al lado de tu música.</sub>
 </div>
 
@@ -58,10 +59,12 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Controles de auriculares y pausa al desconectarlos
 - Si otra app reproduce audio o video, Tein se pausa, espera y retoma sola desde el mismo segundo cuando la otra termina
 - **Ecualizador** de 5 bandas con presets (Graves, Agudos, Rock, Pop, Voz, Electrónica) y ajuste manual
-- **28 diseños** a elección en Ajustes:
+- **47 diseños** a elección en Ajustes, cada uno con sus figuras de fondo (notas, barras, burbujas, estrellas, telarañas, rayos…):
   - Colores: Violeta, Océano, Esmeralda, Atardecer, Rosa y Negro puro
   - Estilo Winamp: Winamp Clásico, Winamp Bento, Amp Matrix, Amp Neón, Amp Lava y Amp Hielo (bordes rectos y colores fosforescentes)
   - Inspirados en skins del [Winamp Skin Museum](https://skins.webamp.org/): Amp Circuito, Amp Búnker, Amp 8-bit, Amp Terminal, Amp Infierno, Amp Glow, Amp Denim, Amp Biomecánico, Amp Refresco, Amp Aventura y Amp Acero
+  - Temáticos: Sega 16-bit, Windows XP, XP Luna, Retro 70s, Retro Synthwave, Dark Fantasy, Light Fantasy, Xenomorfo, Nostromo, Terror y Terror Niebla
+  - Superhéroes: Héroe Arácnido, Caballero Nocturno, Hombre de Acero, Armadura de Hierro, Titán Esmeralda, Capitán Escudo, Velocista y Amazona
   - Frutiger: Frutiger Aero, Frutiger Eco, Frutiger Aurora, Aero Oscuro y Frutiger Metro (degradados, botones con brillo de vidrio y un tema claro)
 
 </td>
