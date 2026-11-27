@@ -88,7 +88,7 @@ fn long_input_preserves_text_and_keeps_actions_in_bounds() {
         state.set_edit_album(name.as_str().into());
         state.set_edit_open(true);
         let dialog_right = (w + (w - 24.).min(440.)) / 2.;
-        click(&ui, dialog_right - 50., 487.);
+        click(&ui, dialog_right - 50., 310.);
         assert!(saved.replace(false), "save, width: {width}");
         state.set_edit_open(false);
     }

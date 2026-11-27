@@ -135,7 +135,7 @@ component EmptyState inherits VerticalLayout {
         Rectangle {
             width: 96px;
             height: 96px;
-            border-radius: 48px;
+            border-radius: 48px * Palette.round;
             background: Palette.accent-soft;
             Icon {
                 commands: root.icon;
@@ -165,7 +165,7 @@ component SourceBadge inherits Rectangle {
     in property <string> text;
     in property <color> tint;
     height: 30px;
-    border-radius: 15px;
+    border-radius: 15px * Palette.round;
     background: root.tint.with-alpha(0.18);
     border-width: 1px;
     border-color: root.tint.with-alpha(0.5);
@@ -478,7 +478,7 @@ component SearchPage inherits VerticalLayout {
                     y: (parent.height - self.height) / 2;
                     source: item.art;
                     has-image: item.has-art;
-                    border-radius: 6px;
+                    border-radius: 6px * Palette.round;
                 }
                 VerticalLayout {
                     alignment: center;
@@ -553,7 +553,7 @@ component DownloadsPage inherits VerticalLayout {
                 y: 4px;
                 width: parent.width - 2 * root.pad;
                 height: parent.height - 8px;
-                border-radius: 12px;
+                border-radius: 12px * Palette.round;
                 background: Palette.surface;
                 HorizontalLayout {
                     padding-left: 12px;
@@ -563,7 +563,7 @@ component DownloadsPage inherits VerticalLayout {
                         width: 40px;
                         height: 40px;
                         y: (parent.height - self.height) / 2;
-                        border-radius: 20px;
+                        border-radius: 20px * Palette.round;
                         background: item.state == 3 ? Palette.danger.with-alpha(0.18) : item.state == 2 ? Palette.ok.with-alpha(0.18) : Palette.accent-soft;
                         Icon {
                             commands: item.state == 3 ? Icons.error : item.state == 2 ? Icons.check : Icons.download;
@@ -589,13 +589,13 @@ component DownloadsPage inherits VerticalLayout {
                         }
                         if item.state < 2: Rectangle {
                             height: 4px;
-                            border-radius: 2px;
-                            background: #ffffff1a;
+                            border-radius: 2px * Palette.round;
+                            background: Palette.overlay;
                             Rectangle {
                                 x: 0;
                                 width: parent.width * item.progress;
                                 background: Palette.accent;
-                                border-radius: 2px;
+                                border-radius: 2px * Palette.round;
                                 animate width { duration: 300ms; }
                             }
                         }
@@ -631,7 +631,7 @@ component SettingsPage inherits VerticalLayout {
                 font-weight: 700;
             }
             Rectangle {
-                border-radius: 12px;
+                border-radius: 12px * Palette.round;
                 background: Palette.surface;
                 VerticalLayout {
                     padding: 14px;
@@ -679,7 +679,7 @@ component SettingsPage inherits VerticalLayout {
                 font-weight: 700;
             }
             Rectangle {
-                border-radius: 12px;
+                border-radius: 12px * Palette.round;
                 background: Palette.surface;
                 VerticalLayout {
                     padding: 14px;
@@ -735,7 +735,7 @@ component SettingsPage inherits VerticalLayout {
             }
             for theme[i] in Palette.themes: Rectangle {
                 height: 56px;
-                border-radius: 12px;
+                border-radius: 12px * Palette.round;
                 background: tta.pressed ? Palette.surface-2 : Palette.surface;
                 border-width: Palette.theme == i ? 2px : 0px;
                 border-color: Palette.accent;
@@ -753,8 +753,8 @@ component SettingsPage inherits VerticalLayout {
                         width: 28px;
                         height: 28px;
                         y: (parent.height - self.height) / 2;
-                        border-radius: 14px;
-                        background: theme.accent;
+                        border-radius: 14px * Palette.round;
+                        background: @linear-gradient(135deg, theme.accent 0%, theme.accent 50%, theme.bg-2 50%, theme.bg 100%);
                         border-width: 3px;
                         border-color: theme.surface-3;
                     }
@@ -768,8 +768,8 @@ component SettingsPage inherits VerticalLayout {
                     }
                     if Palette.theme == i: Icon {
                         commands: Icons.check;
-                        tint: Palette.accent.brighter(40%);
-                        width: 24px;
+                        tint: Palette.accent;
+                        y: (parent.height - self.height) / 2;
                     }
                 }
             }
@@ -818,9 +818,9 @@ component MiniPlayer inherits Rectangle {
         y: 4px;
         width: parent.width - 16px;
         height: parent.height - 8px;
-        border-radius: 12px;
+        border-radius: 12px * Palette.round;
         clip: true;
-        background: State.now-tint;
+        background: Palette.tint(State.now-tint);
         animate background { duration: 500ms; }
         TouchArea {
             clicked => { root.open(); }
@@ -835,7 +835,7 @@ component MiniPlayer inherits Rectangle {
                 y: (parent.height - self.height) / 2;
                 source: State.now-cover;
                 has-image: State.has-cover;
-                border-radius: 6px;
+                border-radius: 6px * Palette.round;
             }
             VerticalLayout {
                 alignment: center;
@@ -849,7 +849,7 @@ component MiniPlayer inherits Rectangle {
                 }
                 Text {
                     text: State.now-artist;
-                    color: #ffffffb0;
+                    color: Palette.muted;
                     font-size: 12px;
                     overflow: elide;
                 }
@@ -878,8 +878,8 @@ component MiniPlayer inherits Rectangle {
             y: parent.height - 3px;
             width: parent.width - 20px;
             height: 2px;
-            border-radius: 1px;
-            background: #ffffff30;
+            border-radius: 1px * Palette.round;
+            background: Palette.overlay;
             Rectangle {
                 x: 0;
                 width: parent.width * (State.duration > 0 ? min(1, State.position / State.duration) : 0);
@@ -907,7 +907,7 @@ component PlayerControls inherits VerticalLayout {
             }
             Text {
                 text: State.now-artist;
-                color: #ffffffb0;
+                color: Palette.muted;
                 font-size: root.compact ? 13px : 16px;
                 overflow: elide;
             }
@@ -928,12 +928,12 @@ component PlayerControls inherits VerticalLayout {
         HorizontalLayout {
             Text {
                 text: State.position-text;
-                color: #ffffffa0;
+                color: Palette.muted;
                 font-size: 12px;
             }
             Text {
                 text: State.duration-text;
-                color: #ffffffa0;
+                color: Palette.muted;
                 font-size: 12px;
                 horizontal-alignment: right;
             }
@@ -943,7 +943,7 @@ component PlayerControls inherits VerticalLayout {
         alignment: space-between;
         IconButton {
             icon: Icons.shuffle;
-            tint: State.shuffle ? Palette.accent.brighter(60%) : #ffffffa0;
+            tint: State.shuffle ? Palette.accent.brighter(60%) : Palette.muted;
             y: (parent.height - self.height) / 2;
             clicked => { State.toggle-shuffle(); }
         }
@@ -975,7 +975,7 @@ component PlayerControls inherits VerticalLayout {
         }
         IconButton {
             icon: State.repeat-mode == 2 ? Icons.repeat-one : Icons.repeat;
-            tint: State.repeat-mode > 0 ? Palette.accent.brighter(60%) : #ffffffa0;
+            tint: State.repeat-mode > 0 ? Palette.accent.brighter(60%) : Palette.muted;
             y: (parent.height - self.height) / 2;
             clicked => { State.cycle-repeat(); }
         }
@@ -984,7 +984,7 @@ component PlayerControls inherits VerticalLayout {
         spacing: 10px;
         Icon {
             commands: Icons.volume;
-            tint: #ffffffa0;
+            tint: Palette.muted;
             size: 20px;
             y: (parent.height - self.height) / 2;
         }
@@ -1004,7 +1004,7 @@ component BigCover inherits Rectangle {
         height: root.side;
         source: State.now-cover;
         has-image: State.has-cover;
-        border-radius: 14px;
+        border-radius: 14px * Palette.round;
         drop-shadow-blur: 30px;
         drop-shadow-offset-y: 8px;
         drop-shadow-color: #000000a0;
@@ -1019,7 +1019,7 @@ component FullPlayer inherits Rectangle {
     in property <length> left-inset;
     in property <length> right-inset;
     property <bool> landscape: self.width > self.height * 1.1;
-    background: @linear-gradient(180deg, State.now-tint 0%, State.now-tint.darker(60%) 55%, Palette.bg 100%);
+    background: @linear-gradient(180deg, Palette.tint(State.now-tint) 0%, Palette.tint-deep(State.now-tint) 55%, Palette.bg 100%);
     TouchArea { }
     VerticalLayout {
         padding-top: root.top-inset + 8px;
@@ -1037,7 +1037,7 @@ component FullPlayer inherits Rectangle {
                 alignment: center;
                 Text {
                     text: "REPRODUCIENDO";
-                    color: #ffffffa0;
+                    color: Palette.muted;
                     font-size: 10px;
                     font-weight: 700;
                     letter-spacing: 1.5px;
@@ -1092,7 +1092,7 @@ component NowPanel inherits Rectangle {
     callback expand();
     in property <length> top-inset;
     in property <length> bottom-inset;
-    background: @linear-gradient(180deg, State.now-tint 0%, Palette.surface 65%);
+    background: @linear-gradient(180deg, Palette.tint(State.now-tint) 0%, Palette.surface 65%);
     VerticalLayout {
         x: 0;
         width: parent.width;
@@ -1125,7 +1125,7 @@ component NowPanel inherits Rectangle {
                 height: parent.height;
                 source: State.now-cover;
                 has-image: State.has-cover;
-                border-radius: 12px;
+                border-radius: 12px * Palette.round;
                 drop-shadow-blur: 24px;
                 drop-shadow-color: #00000090;
             }
@@ -1190,8 +1190,8 @@ component Sheet inherits Rectangle {
                 Rectangle {
                     width: 36px;
                     height: 4px;
-                    border-radius: 2px;
-                    background: #ffffff30;
+                    border-radius: 2px * Palette.round;
+                    background: Palette.overlay;
                 }
             }
             Text {
@@ -1212,7 +1212,7 @@ component Sheet inherits Rectangle {
                 vertical-stretch: 1;
                 for opt[i] in root.options: Rectangle {
                     height: 54px;
-                    background: ota.pressed ? #ffffff14 : transparent;
+                    background: ota.pressed ? Palette.stroke : transparent;
                     ota := TouchArea {
                         clicked => { root.picked(i); }
                     }
@@ -1245,7 +1245,7 @@ component NameDialog inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: parent.height * 0.22;
         background: Palette.surface;
-        border-radius: 20px;
+        border-radius: 20px * Palette.round;
         TouchArea { }
         VerticalLayout {
             padding: 20px;
@@ -1295,7 +1295,7 @@ component NavItem inherits Rectangle {
             Rectangle {
                 width: root.active ? 60px : 30px;
                 height: 30px;
-                border-radius: 15px;
+                border-radius: 15px * Palette.round;
                 background: root.active ? Palette.accent-soft : transparent;
                 animate width, background { duration: 180ms; }
             }
@@ -1308,7 +1308,7 @@ component NavItem inherits Rectangle {
                 y: -2px;
                 width: 18px;
                 height: 18px;
-                border-radius: 9px;
+                border-radius: 9px * Palette.round;
                 background: Palette.accent;
                 Text {
                     text: root.badge;
@@ -1348,7 +1348,7 @@ export component AppWindow inherits Window {
         { icon: Icons.settings, label: "Ajustes" },
     ];
     title: "Tein";
-    background: Palette.bg;
+    background: Palette.backdrop;
     preferred-width: 400px;
     preferred-height: 820px;
     default-font-size: 14px;
@@ -1401,7 +1401,7 @@ export component AppWindow inherits Window {
             }
             if !root.wide: Rectangle {
                 height: 64px + root.bottom-inset;
-                background: Palette.bg;
+                background: Palette.bar;
                 Rectangle {
                     y: 0;
                     height: 1px;
@@ -1483,7 +1483,7 @@ export component AppWindow inherits Window {
             y: root.top-inset + 16px;
             height: min(State.edit-mode == 0 ? 330px : State.edit-mode == 1 ? 260px : 190px, parent.height - root.top-inset - root.bottom-inset - 16px);
             background: Palette.surface;
-            border-radius: 16px;
+            border-radius: 16px * Palette.round;
             VerticalLayout {
                 padding: 16px;
                 spacing: 8px;
@@ -1519,7 +1519,7 @@ export component AppWindow inherits Window {
         height: 46px;
         x: (parent.width - self.width) / 2;
         y: parent.height - root.bottom-inset - (root.wide ? 24px : 76px) - (root.mini ? 72px : 0px) - self.height;
-        border-radius: 23px;
+        border-radius: 23px * Palette.round;
         background: #33333ff2;
         drop-shadow-blur: 16px;
         drop-shadow-color: #00000080;

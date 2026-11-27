@@ -35,6 +35,8 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
   <img src="docs/screenshots/notification.png" width="19%" alt="Notificación">
   <br><br>
   <img src="docs/screenshots/tablet.png" width="78%" alt="Tablet">
+  <br>
+  <img src="docs/screenshots/temas.png" width="98%" alt="Diseños Amp Neón, Amp Lava, Frutiger Aero, Frutiger Aurora y Frutiger Metro">
   <br><sub>En tablets: barra lateral y reproductor siempre visible al lado de tu música.</sub>
 </div>
 
@@ -54,7 +56,10 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Controles de auriculares y pausa al desconectarlos
 - Si otra app reproduce audio o video, Tein se pausa, espera y retoma sola desde el mismo segundo cuando la otra termina
 - **Ecualizador** de 5 bandas con presets (Graves, Agudos, Rock, Pop, Voz, Electrónica) y ajuste manual
-- **Temas de color** a elección: Violeta, Océano, Esmeralda, Atardecer, Rosa y Negro puro
+- **17 diseños** a elección en Ajustes:
+  - Colores: Violeta, Océano, Esmeralda, Atardecer, Rosa y Negro puro
+  - Estilo Winamp: Winamp Clásico, Winamp Bento, Amp Matrix, Amp Neón, Amp Lava y Amp Hielo (bordes rectos y colores fosforescentes)
+  - Frutiger: Frutiger Aero, Frutiger Eco, Frutiger Aurora, Aero Oscuro y Frutiger Metro (degradados, botones con brillo de vidrio y un tema claro)
 
 </td>
 <td width="50%" valign="top">

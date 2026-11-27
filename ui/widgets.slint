@@ -20,8 +20,8 @@ export component IconButton inherits Rectangle {
     callback clicked();
     width: 44px;
     height: 44px;
-    border-radius: self.width / 2;
-    background: filled ? (ta.pressed ? root.fill.darker(20%) : root.fill) : (ta.pressed ? #ffffff1f : transparent);
+    border-radius: self.width / 2 * Palette.round;
+    background: filled ? (ta.pressed ? root.fill.darker(20%) : root.fill) : (ta.pressed ? Palette.overlay : transparent);
     animate background { duration: 120ms; }
     Icon {
         commands: root.icon;
@@ -34,14 +34,24 @@ export component IconButton inherits Rectangle {
     }
 }
 
+// Glassy highlight of the Frutiger Aero era.
+export component Gloss inherits Rectangle {
+    in property <length> radius;
+    border-radius: root.radius;
+    border-width: 1px;
+    border-color: #ffffff50;
+    background: @linear-gradient(180deg, #ffffff70 0%, #ffffff18 48%, #ffffff00 52%, #ffffff14 100%);
+}
+
 export component Chip inherits Rectangle {
     in property <string> text;
     in property <bool> active;
     callback clicked();
     height: 36px;
-    border-radius: 18px;
+    border-radius: 18px * Palette.round;
     background: active ? Palette.text : (ta.pressed ? Palette.surface-3 : Palette.surface-2);
     animate background { duration: 160ms; }
+    if Palette.gloss: Gloss { radius: root.border-radius; }
     HorizontalLayout {
         padding-left: 16px;
         padding-right: 16px;
@@ -64,9 +74,10 @@ export component PillButton inherits Rectangle {
     in property <bool> primary: true;
     callback clicked();
     height: 40px;
-    border-radius: 20px;
+    border-radius: 20px * Palette.round;
     background: primary ? (ta.pressed ? Palette.accent.darker(20%) : Palette.accent) : (ta.pressed ? Palette.surface-3 : Palette.surface-2);
     animate background { duration: 120ms; }
+    if Palette.gloss: Gloss { radius: root.border-radius; }
     HorizontalLayout {
         padding-left: 14px;
         padding-right: 18px;
@@ -74,12 +85,13 @@ export component PillButton inherits Rectangle {
         alignment: center;
         if root.icon != "": Icon {
             commands: root.icon;
+            tint: root.primary ? Palette.on-accent : Palette.text;
             size: 20px;
             y: (parent.height - self.height) / 2;
         }
         Text {
             text: root.text;
-            color: Palette.text;
+            color: root.primary ? Palette.on-accent : Palette.text;
             font-size: 14px;
             font-weight: 700;
             vertical-alignment: center;
@@ -94,7 +106,7 @@ export component Cover inherits Rectangle {
     in property <image> source;
     in property <bool> has-image;
     in property <string> icon: Icons.note;
-    border-radius: 8px;
+    border-radius: 8px * Palette.round;
     clip: true;
     background: @linear-gradient(135deg, Palette.accent.darker(25%) 0%, Palette.accent.darker(120%).mix(Palette.surface-2, 0.5) 60%, Palette.surface-2 100%);
     if !root.has-image: Icon {
@@ -119,7 +131,7 @@ export component EqBars inherits Rectangle {
     for phase[i] in [0, 110, 230]: Rectangle {
         x: i * 6px;
         width: 4px;
-        border-radius: 1px;
+        border-radius: 1px * Palette.round;
         background: root.bar-color;
         height: root.active ? 3px + 13px * abs(sin((animation-tick() / 1ms * 0.5 + phase) * 1deg)) : 4px;
         y: root.height - self.height;
@@ -139,22 +151,22 @@ export component Bar inherits Rectangle {
     Rectangle {
         y: (parent.height - self.height) / 2;
         height: ta.pressed ? 6px : 4px;
-        border-radius: self.height / 2;
-        background: #ffffff2e;
+        border-radius: self.height / 2 * Palette.round;
+        background: Palette.overlay;
     }
     Rectangle {
         x: 0;
         y: (parent.height - self.height) / 2;
         width: parent.width * root.frac;
         height: ta.pressed ? 6px : 4px;
-        border-radius: self.height / 2;
+        border-radius: self.height / 2 * Palette.round;
         background: root.fill;
     }
     Rectangle {
         x: parent.width * root.frac - self.width / 2;
         width: ta.pressed ? 18px : 12px;
         height: self.width;
-        border-radius: self.width / 2;
+        border-radius: self.width / 2 * Palette.round;
         background: Palette.text;
         animate width { duration: 100ms; }
     }
@@ -194,7 +206,7 @@ export component ListRow inherits Rectangle {
     callback clicked();
     callback more();
     height: 66px;
-    background: ta.pressed ? #ffffff0f : transparent;
+    background: ta.pressed ? Palette.stroke : transparent;
     ta := TouchArea {
         clicked => { root.clicked(); }
     }
@@ -212,10 +224,10 @@ export component ListRow inherits Rectangle {
                 source: root.art;
                 has-image: root.has-art;
                 icon: root.icon;
-                border-radius: 6px;
+                border-radius: 6px * Palette.round;
             }
             if root.highlighted: Rectangle {
-                border-radius: 6px;
+                border-radius: 6px * Palette.round;
                 background: #00000088;
                 EqBars { active: root.animate-eq; }
             }

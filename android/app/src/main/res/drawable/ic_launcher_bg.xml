@@ -3,7 +3,7 @@
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr xmlns:aapt="http://schemas.android.com/aapt" name="android:fillColor">
             <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="108" android:endY="108"
-                android:startColor="#8b5cf6" android:endColor="#4c1d95" />
+                android:startColor="#a78bfa" android:centerColor="#7c3aed" android:endColor="#4c1d95" />
         </aapt:attr>
     </path>
 </vector>

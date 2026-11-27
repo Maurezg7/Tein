@@ -1,25 +1,46 @@
-export struct Theme { name: string, bg: color, surface: color, surface-2: color, surface-3: color, accent: color }
+export struct Theme { name: string, bg: color, bg-2: color, surface: color, surface-2: color, surface-3: color, accent: color, text: color, muted: color, on-accent: color, round: float, gloss: bool, light: bool }
 
 export global Palette {
     in-out property <int> theme: 0;
     out property <[Theme]> themes: [
-        { name: "Violeta", bg: #0f0f13, surface: #1a1a21, surface-2: #24242d, surface-3: #30303b, accent: #8b5cf6 },
-        { name: "Océano", bg: #0b1118, surface: #141d28, surface-2: #1d2937, surface-3: #283748, accent: #3b82f6 },
-        { name: "Esmeralda", bg: #0b120f, surface: #14201a, surface-2: #1d2c25, surface-3: #283a31, accent: #10b981 },
-        { name: "Atardecer", bg: #14100c, surface: #211a14, surface-2: #2d241c, surface-3: #3b3026, accent: #f97316 },
-        { name: "Rosa", bg: #140d11, surface: #21161c, surface-2: #2d1f27, surface-3: #3b2a33, accent: #ec4899 },
-        { name: "Negro puro", bg: #000000, surface: #101012, surface-2: #1a1a1e, surface-3: #26262b, accent: #e5484d },
+        { name: "Violeta", bg: #0f0f13, bg-2: #0f0f13, surface: #1a1a21, surface-2: #24242d, surface-3: #30303b, accent: #8b5cf6, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
+        { name: "Océano", bg: #0b1118, bg-2: #0b1118, surface: #141d28, surface-2: #1d2937, surface-3: #283748, accent: #3b82f6, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
+        { name: "Esmeralda", bg: #0b120f, bg-2: #0b120f, surface: #14201a, surface-2: #1d2c25, surface-3: #283a31, accent: #10b981, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
+        { name: "Atardecer", bg: #14100c, bg-2: #14100c, surface: #211a14, surface-2: #2d241c, surface-3: #3b3026, accent: #f97316, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
+        { name: "Rosa", bg: #140d11, bg-2: #140d11, surface: #21161c, surface-2: #2d1f27, surface-3: #3b2a33, accent: #ec4899, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
+        { name: "Negro puro", bg: #000000, bg-2: #000000, surface: #101012, surface-2: #1a1a1e, surface-3: #26262b, accent: #e5484d, text: #f4f4f6, muted: #a0a0ad, on-accent: #ffffff, round: 1, gloss: false },
+        { name: "Winamp Clásico", bg: #1c1c2a, bg-2: #12121c, surface: #2a2a3f, surface-2: #3a3a58, surface-3: #4c4c72, accent: #e8b923, text: #00f000, muted: #7fb37f, on-accent: #1c1c2a, round: 0.12, gloss: false },
+        { name: "Winamp Bento", bg: #2b3540, bg-2: #1a2129, surface: #3a4756, surface-2: #4a5a6c, surface-3: #5d7085, accent: #7fd4ff, text: #e8f1f8, muted: #9fb2c4, on-accent: #10202c, round: 0.3, gloss: true },
+        { name: "Amp Matrix", bg: #000000, bg-2: #001a06, surface: #031207, surface-2: #06220d, surface-3: #0a3314, accent: #00ff41, text: #00ff41, muted: #0b9e31, on-accent: #000000, round: 0, gloss: false },
+        { name: "Amp Neón", bg: #12002b, bg-2: #2b0040, surface: #24104a, surface-2: #3a1a6e, surface-3: #522692, accent: #ff2bd6, text: #5ff4ff, muted: #c08cff, on-accent: #12002b, round: 0.12, gloss: false },
+        { name: "Amp Lava", bg: #190000, bg-2: #3d0c00, surface: #2c0a05, surface-2: #48140a, surface-3: #662010, accent: #ffb300, text: #ffe9c2, muted: #d98a5a, on-accent: #2a0800, round: 0.12, gloss: true },
+        { name: "Amp Hielo", bg: #04161f, bg-2: #0a3242, surface: #0c2836, surface-2: #143d50, surface-3: #1e556e, accent: #b8f4ff, text: #e6fbff, muted: #7fb8c9, on-accent: #04222e, round: 0.12, gloss: true },
+        { name: "Frutiger Aero", bg: #0f7fd6, bg-2: #3faa4e, surface: #1877c4e0, surface-2: #ffffff38, surface-3: #ffffff55, accent: #7ddc3c, text: #ffffff, muted: #e3f4ff, on-accent: #0b3d12, round: 1, gloss: true },
+        { name: "Frutiger Eco", bg: #1f8f3c, bg-2: #5fae2e, surface: #278a3ce0, surface-2: #ffffff38, surface-3: #ffffff55, accent: #19c6e6, text: #ffffff, muted: #eefbe0, on-accent: #053540, round: 1, gloss: true },
+        { name: "Frutiger Aurora", bg: #061a2e, bg-2: #0e5c63, surface: #0d2f4ae8, surface-2: #ffffff22, surface-3: #ffffff3a, accent: #5ef2c4, text: #f2fffb, muted: #a6d5d8, on-accent: #05332a, round: 1, gloss: true },
+        { name: "Aero Oscuro", bg: #05080d, bg-2: #16283d, surface: #0f1722f0, surface-2: #ffffff1c, surface-3: #ffffff30, accent: #39a9ff, text: #f4f8ff, muted: #9fb4c9, on-accent: #ffffff, round: 1, gloss: true },
+        { name: "Frutiger Metro", bg: #e9eef3, bg-2: #cfd8e2, surface: #ffffff, surface-2: #dfe6ee, surface-3: #c9d3df, accent: #0078d7, text: #1b2530, muted: #5c6b7a, on-accent: #ffffff, round: 0.2, gloss: false, light: true },
     ];
     property <Theme> current: themes[min(max(theme, 0), themes.length - 1)];
     out property <color> bg: current.bg;
+    out property <color> bar: current.bg-2;
+    out property <brush> backdrop: @linear-gradient(180deg, current.bg 0%, current.bg-2 100%);
     out property <color> surface: current.surface;
     out property <color> surface-2: current.surface-2;
     out property <color> surface-3: current.surface-3;
-    out property <color> stroke: #ffffff14;
+    out property <color> stroke: current.text.with-alpha(0.08);
+    out property <color> overlay: current.text.with-alpha(0.12);
     out property <color> accent: current.accent;
     out property <color> accent-soft: current.accent.with-alpha(0.25);
-    out property <color> text: #f4f4f6;
-    out property <color> muted: #a0a0ad;
+    out property <color> text: current.text;
+    out property <color> muted: current.muted;
+    out property <color> on-accent: current.on-accent;
+    // Multiplies corner radii: 1 is round, 0 is square like a classic skin.
+    out property <float> round: current.round;
+    out property <bool> gloss: current.gloss;
+    // Cover-derived colours are dark; light themes need them pastel to keep text readable.
+    pure public function tint(c: color) -> color { return current.light ? c.mix(#ffffff, 0.3) : c; }
+    pure public function tint-deep(c: color) -> color { return current.light ? c.mix(#ffffff, 0.15) : c.darker(60%); }
     out property <color> danger: #f87171;
     out property <color> ok: #34d399;
 }
