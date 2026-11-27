@@ -70,6 +70,11 @@ static void bindCommand(MPRemoteCommand *command, int64_t action) {
 }
 void tein_ios_init(void) {
     [AVAudioSession.sharedInstance setCategory:AVAudioSessionCategoryPlayback error:nil];
+    [NSNotificationCenter.defaultCenter addObserverForName:AVAudioSessionRouteChangeNotification object:AVAudioSession.sharedInstance queue:nil usingBlock:^(NSNotification *note) {
+        if ([note.userInfo[AVAudioSessionRouteChangeReasonKey] unsignedIntegerValue] == AVAudioSessionRouteChangeReasonOldDeviceUnavailable) {
+            tein_command(6); // Park before switching to the speaker.
+        }
+    }];
     [NSNotificationCenter.defaultCenter addObserverForName:AVAudioSessionInterruptionNotification object:AVAudioSession.sharedInstance queue:nil usingBlock:^(NSNotification *note) {
         NSDictionary *info = note.userInfo;
         if ([info[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeBegan) {
