@@ -52,6 +52,9 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Cola editable: reproducir a continuación, agregar, quitar
 - Segundo plano con controles en la notificación y la pantalla de bloqueo. En Android 10 o superior, expandí el control multimedia y arrastrá la barra para saltar a otro segundo (la presentación depende del teléfono).
 - Controles de auriculares y pausa al desconectarlos
+- Si otra app reproduce audio o video, Tein se pausa, espera y retoma sola desde el mismo segundo cuando la otra termina
+- **Ecualizador** de 5 bandas con presets (Graves, Agudos, Rock, Pop, Voz, Electrónica) y ajuste manual
+- **Temas de color** a elección: Violeta, Océano, Esmeralda, Atardecer, Rosa y Negro puro
 
 </td>
 <td width="50%" valign="top">
@@ -62,6 +65,7 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - Buscador instantáneo en tu música
 - Favoritas y listas de reproducción propias
 - Menú **⋮** en la biblioteca, la cola y el reproductor: editá título, artista y álbum sin perder la portada, o elegí **Eliminar archivo…** y confirmá. **Quitar de la cola** no borra el archivo.
+- Editá con libertad: nombre y artista de un álbum entero, nombre de un artista o de una lista, y la **foto de portada** de canciones, álbumes, artistas y listas con una imagen de tu galería
 - Portadas en todas las listas y cuadrícula de álbumes, artistas y listas
 - **Completar datos y portada**: busca título, artista, álbum, año y portada y los guarda en el archivo (una canción o un artista/álbum/lista entero)
 
@@ -77,7 +81,8 @@ Tu biblioteca, un buscador rápido y descargas desde YouTube, Spotify y Apple Mu
 - **Playlists completas** (también de más de 100 temas) con **Bajar todo**
 - Cada playlist se guarda en su carpeta `Música/Tein/<playlist>` y se crea como lista en la app
 - Archivos M4A con título, artista y portada
-- Se guardan en `Música/Tein` y aparecen solas en la biblioteca
+- Antes de la primera descarga Tein pregunta dónde guardar: memoria interna, **tarjeta SD** u otra carpeta. Se cambia cuando quieras en **Ajustes → Cambiar carpeta**
+- Por defecto se guardan en `Música/Tein` y aparecen solas en la biblioteca
 - Si YouTube corta una descarga (403), sigue con otro cliente desde donde quedó
 
 </td>

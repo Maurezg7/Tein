@@ -26,6 +26,25 @@ impl Default for Settings {
     }
 }
 
+/// Choices made in the settings page.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Prefs {
+    #[serde(default)]
+    pub theme: i32,
+    #[serde(default)]
+    pub download_dir: Option<String>,
+    #[serde(default)]
+    pub eq: [f32; 5],
+}
+
+pub fn load_prefs() -> Prefs {
+    load("prefs.json").unwrap_or_default()
+}
+
+pub fn save_prefs(p: &Prefs) {
+    save("prefs.json", p);
+}
+
 fn file(name: &str) -> PathBuf {
     crate::paths::get().data_dir.join(name)
 }

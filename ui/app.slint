@@ -46,7 +46,7 @@ export global State {
     in property <string> now-album;
     in property <image> now-cover;
     in property <bool> has-cover;
-    in property <color> now-tint: #3b266e;
+    in property <color> now-tint: Palette.accent.darker(110%);
     in property <bool> playing;
     in property <float> position;
     in property <float> duration;
@@ -79,6 +79,17 @@ export global State {
     in-out property <string> edit-artist;
     in-out property <string> edit-album;
     callback save-edit();
+    // 0 = song, 1 = album, 2 = artist, 3 = playlist
+    in property <int> edit-mode;
+    // Settings
+    in property <string> download-dir;
+    callback change-download-dir();
+    callback set-theme(int);
+    in property <[float]> eq: [0, 0, 0, 0, 0];
+    in property <[string]> eq-presets;
+    in property <int> eq-preset: 0;
+    callback set-eq(int, float);
+    callback set-eq-preset(int);
     in-out property <bool> chooser-open;
     in property <[string]> playlist-names;
     callback choose-playlist(int);
@@ -531,7 +542,7 @@ component DownloadsPage inherits VerticalLayout {
         vertical-stretch: 1;
         icon: Icons.download;
         title: "Sin descargas";
-        text: "Se guardan en Música/Tein y se agregan solas a tu biblioteca.";
+        text: "Se guardan en " + State.download-dir + " y se agregan solas a tu biblioteca.";
     }
     if State.downloads.length > 0: ListView {
         vertical-stretch: 1;
@@ -588,6 +599,177 @@ component DownloadsPage inherits VerticalLayout {
                                 animate width { duration: 300ms; }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+component SettingsPage inherits VerticalLayout {
+    in property <bool> wide;
+    property <length> pad: wide ? 24px : 16px;
+    PageTitle {
+        title: "Ajustes";
+        pad: root.pad;
+    }
+    Flickable {
+        vertical-stretch: 1;
+        content-width: self.width;
+        content-height: body.preferred-height;
+        body := VerticalLayout {
+            width: parent.width;
+            padding-left: root.pad;
+            padding-right: root.pad;
+            padding-bottom: 24px;
+            spacing: 10px;
+            alignment: start;
+            Text {
+                text: "Carpeta de descargas";
+                color: Palette.text;
+                font-size: 16px;
+                font-weight: 700;
+            }
+            Rectangle {
+                border-radius: 12px;
+                background: Palette.surface;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 12px;
+                    HorizontalLayout {
+                        spacing: 10px;
+                        Icon {
+                            commands: Icons.folder;
+                            tint: Palette.accent.brighter(60%);
+                            width: 24px;
+                        }
+                        Text {
+                            horizontal-stretch: 1;
+                            min-width: 1px;
+                            text: State.download-dir;
+                            color: Palette.muted;
+                            font-size: 13px;
+                            wrap: char-wrap;
+                            vertical-alignment: center;
+                        }
+                    }
+                    HorizontalLayout {
+                        alignment: start;
+                        PillButton {
+                            text: "Cambiar carpeta";
+                            accessible-role: button;
+                            accessible-label: "Cambiar carpeta";
+                            accessible-action-default => { State.change-download-dir(); }
+                            clicked => { State.change-download-dir(); }
+                        }
+                    }
+                }
+            }
+            Text {
+                text: "Podés usar la memoria interna, la tarjeta SD u otra carpeta.";
+                color: Palette.muted;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+            Rectangle { height: 8px; }
+            Text {
+                text: "Ecualizador";
+                color: Palette.text;
+                font-size: 16px;
+                font-weight: 700;
+            }
+            Rectangle {
+                border-radius: 12px;
+                background: Palette.surface;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 6px;
+                    Flickable {
+                        height: 36px;
+                        content-width: presets.preferred-width;
+                        presets := HorizontalLayout {
+                            spacing: 8px;
+                            for name[i] in State.eq-presets: Chip {
+                                text: name;
+                                active: State.eq-preset == i;
+                                clicked => { State.set-eq-preset(i); }
+                            }
+                        }
+                    }
+                    for gain[i] in State.eq: HorizontalLayout {
+                        spacing: 10px;
+                        Text {
+                            width: 54px;
+                            text: ["60 Hz", "230 Hz", "910 Hz", "3,6 kHz", "12 kHz"][i];
+                            color: Palette.muted;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                        }
+                        Bar {
+                            horizontal-stretch: 1;
+                            value: gain + 12;
+                            maximum: 24;
+                            fill: Palette.accent;
+                            accessible-role: slider;
+                            accessible-label: "Banda " + (i + 1);
+                            accessible-value: gain;
+                            released(v) => { State.set-eq(i, v - 12); }
+                        }
+                        Text {
+                            width: 46px;
+                            text: (gain > 0 ? "+" : "") + round(gain) + " dB";
+                            color: Palette.text;
+                            font-size: 12px;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+            Rectangle { height: 8px; }
+            Text {
+                text: "Tema de color";
+                color: Palette.text;
+                font-size: 16px;
+                font-weight: 700;
+            }
+            for theme[i] in Palette.themes: Rectangle {
+                height: 56px;
+                border-radius: 12px;
+                background: tta.pressed ? Palette.surface-2 : Palette.surface;
+                border-width: Palette.theme == i ? 2px : 0px;
+                border-color: Palette.accent;
+                accessible-role: button;
+                accessible-label: "Tema " + theme.name;
+                accessible-action-default => { State.set-theme(i); }
+                tta := TouchArea {
+                    clicked => { State.set-theme(i); }
+                }
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    spacing: 12px;
+                    Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 14px;
+                        background: theme.accent;
+                        border-width: 3px;
+                        border-color: theme.surface-3;
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: theme.name;
+                        color: Palette.text;
+                        font-size: 15px;
+                        font-weight: Palette.theme == i ? 700 : 500;
+                        vertical-alignment: center;
+                    }
+                    if Palette.theme == i: Icon {
+                        commands: Icons.check;
+                        tint: Palette.accent.brighter(40%);
+                        width: 24px;
                     }
                 }
             }
@@ -1146,6 +1328,8 @@ component NavItem inherits Rectangle {
     }
 }
 
+export { Palette }
+
 export component AppWindow inherits Window {
     in-out property <int> current-tab: 0;
     in-out property <bool> player-open: false;
@@ -1161,6 +1345,7 @@ export component AppWindow inherits Window {
         { icon: Icons.search, label: "Buscar" },
         { icon: Icons.download, label: "Descargas" },
         { icon: Icons.queue, label: "Cola" },
+        { icon: Icons.settings, label: "Ajustes" },
     ];
     title: "Tein";
     background: Palette.bg;
@@ -1208,6 +1393,7 @@ export component AppWindow inherits Window {
                 if root.current-tab == 1: SearchPage { wide: root.wide; }
                 if root.current-tab == 2: DownloadsPage { wide: root.wide; }
                 if root.current-tab == 3: QueuePage { wide: root.wide; }
+                if root.current-tab == 4: SettingsPage { wide: root.wide; }
             }
             if root.mini: MiniPlayer {
                 show-next: root.wide;
@@ -1293,13 +1479,15 @@ export component AppWindow inherits Window {
         TouchArea { }
         Rectangle {
             width: min(parent.width - 24px, 440px);
-            height: min(330px, parent.height - root.top-inset - root.bottom-inset);
+            // Near the top so the keyboard never covers the buttons.
+            y: root.top-inset + 16px;
+            height: min(State.edit-mode == 0 ? 330px : State.edit-mode == 1 ? 260px : 190px, parent.height - root.top-inset - root.bottom-inset - 16px);
             background: Palette.surface;
             border-radius: 16px;
             VerticalLayout {
                 padding: 16px;
                 spacing: 8px;
-                Text { text: "Editar canción"; font-size: 20px; color: Palette.text; }
+                Text { text: State.edit-mode == 0 ? "Editar canción" : State.edit-mode == 1 ? "Editar álbum" : State.edit-mode == 2 ? "Editar artista" : "Editar lista"; font-size: 20px; color: Palette.text; }
                 Flickable {
                     vertical-stretch: 1;
                     content-width: self.width;
@@ -1307,12 +1495,13 @@ export component AppWindow inherits Window {
                     fields := VerticalLayout {
                         width: parent.width;
                         spacing: 4px;
-                        Text { text: "Título"; color: Palette.muted; }
-                        InputField { accessible-label: "Título"; text <=> State.edit-title; enabled: !State.edit-saving; }
-                        Text { text: "Artista"; color: Palette.muted; }
-                        InputField { accessible-label: "Artista"; text <=> State.edit-artist; enabled: !State.edit-saving; }
-                        Text { text: "Álbum"; color: Palette.muted; }
-                        InputField { accessible-label: "Álbum"; text <=> State.edit-album; enabled: !State.edit-saving; }
+                        property <string> main-label: State.edit-mode == 0 ? "Título" : State.edit-mode == 1 ? "Álbum" : State.edit-mode == 2 ? "Artista" : "Nombre";
+                        Text { text: fields.main-label; color: Palette.muted; }
+                        InputField { accessible-label: fields.main-label; text <=> State.edit-title; enabled: !State.edit-saving; }
+                        if State.edit-mode <= 1: Text { text: State.edit-mode == 1 ? "Artista (vacío: no cambiar)" : "Artista"; color: Palette.muted; }
+                        if State.edit-mode <= 1: InputField { accessible-label: "Artista"; text <=> State.edit-artist; enabled: !State.edit-saving; }
+                        if State.edit-mode == 0: Text { text: "Álbum"; color: Palette.muted; }
+                        if State.edit-mode == 0: InputField { accessible-label: "Álbum"; text <=> State.edit-album; enabled: !State.edit-saving; }
                     }
                 }
                 HorizontalLayout {

@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
 pub struct Paths {
     pub data_dir: PathBuf,
@@ -9,6 +9,23 @@ pub struct Paths {
 }
 
 static PATHS: OnceLock<Paths> = OnceLock::new();
+
+static DOWNLOAD_DIR: RwLock<Option<PathBuf>> = RwLock::new(None);
+
+/// Where downloads go: the folder chosen by the user, or the default one.
+pub fn download_dir() -> PathBuf {
+    DOWNLOAD_DIR
+        .read()
+        .ok()
+        .and_then(|d| d.clone())
+        .unwrap_or_else(|| get().download_dir.clone())
+}
+
+pub fn set_download_dir(dir: PathBuf) {
+    if let Ok(mut d) = DOWNLOAD_DIR.write() {
+        *d = Some(dir);
+    }
+}
 
 pub fn get() -> &'static Paths {
     PATHS.get_or_init(desktop_paths)
@@ -53,8 +70,7 @@ pub fn init_android(app: &slint::android::AndroidApp) {
     ));
 }
 
-#[cfg(target_os = "android")]
-fn is_writable(dir: &std::path::Path) -> bool {
+pub fn is_writable(dir: &std::path::Path) -> bool {
     // Android 11+ only lets apps create audio files in Music/, so the probe must look like one.
     let probe = dir.join(".tein_probe.m4a");
     let ok = std::fs::write(&probe, b"ok").is_ok();

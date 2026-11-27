@@ -1,11 +1,23 @@
+export struct Theme { name: string, bg: color, surface: color, surface-2: color, surface-3: color, accent: color }
+
 export global Palette {
-    out property <color> bg: #0f0f13;
-    out property <color> surface: #1a1a21;
-    out property <color> surface-2: #24242d;
-    out property <color> surface-3: #30303b;
+    in-out property <int> theme: 0;
+    out property <[Theme]> themes: [
+        { name: "Violeta", bg: #0f0f13, surface: #1a1a21, surface-2: #24242d, surface-3: #30303b, accent: #8b5cf6 },
+        { name: "Océano", bg: #0b1118, surface: #141d28, surface-2: #1d2937, surface-3: #283748, accent: #3b82f6 },
+        { name: "Esmeralda", bg: #0b120f, surface: #14201a, surface-2: #1d2c25, surface-3: #283a31, accent: #10b981 },
+        { name: "Atardecer", bg: #14100c, surface: #211a14, surface-2: #2d241c, surface-3: #3b3026, accent: #f97316 },
+        { name: "Rosa", bg: #140d11, surface: #21161c, surface-2: #2d1f27, surface-3: #3b2a33, accent: #ec4899 },
+        { name: "Negro puro", bg: #000000, surface: #101012, surface-2: #1a1a1e, surface-3: #26262b, accent: #e5484d },
+    ];
+    property <Theme> current: themes[min(max(theme, 0), themes.length - 1)];
+    out property <color> bg: current.bg;
+    out property <color> surface: current.surface;
+    out property <color> surface-2: current.surface-2;
+    out property <color> surface-3: current.surface-3;
     out property <color> stroke: #ffffff14;
-    out property <color> accent: #8b5cf6;
-    out property <color> accent-soft: #8b5cf640;
+    out property <color> accent: current.accent;
+    out property <color> accent-soft: current.accent.with-alpha(0.25);
     out property <color> text: #f4f4f6;
     out property <color> muted: #a0a0ad;
     out property <color> danger: #f87171;
@@ -41,5 +53,7 @@ export global Icons {
     out property <string> album: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z";
     out property <string> list: "M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z";
     out property <string> open: "M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6-6 6z";
+    out property <string> settings: "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z";
+    out property <string> folder: "M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z";
     out property <string> error: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z";
 }

@@ -4,7 +4,7 @@ use crate::library::{self, Track};
 use crate::online::{self, OnlineTrack};
 use crate::player::{self, Cmd, Event, PlayerHandle, Snapshot};
 use crate::store::{self, FAVORITES, Playlist};
-use crate::{AppWindow, DownloadItem, GroupItem, OnlineItem, State, TrackItem};
+use crate::{AppWindow, DownloadItem, GroupItem, OnlineItem, Palette, State, TrackItem};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,6 +30,22 @@ enum MenuAction {
     DeleteList,
     FillMeta,
     FillGroupMeta,
+    FolderDefault,
+    FolderSd,
+    FolderPick,
+    PickCover,
+    RemoveCover,
+    EditGroup,
+    PickGroupCover,
+    RemoveGroupCover,
+}
+
+/// What the image being picked will be used for.
+enum CoverTarget {
+    /// Embedded into these files (a song or a whole album).
+    Tracks(Vec<Track>),
+    /// Shown for an artist (view 1) or a playlist (view 3).
+    Group(i32, String),
 }
 
 struct DownloadEntry {
@@ -68,6 +84,12 @@ struct Core {
     thumbs_busy: bool,
     thumbs_again: bool,
     web_thumbs: std::collections::HashMap<String, slint::Image>,
+    prefs: store::Prefs,
+    /// Downloads waiting for the user to choose a folder: (search generation, result indexes).
+    pending_downloads: Option<(u64, Vec<usize>)>,
+    cover_target: Option<CoverTarget>,
+    edit_group: Option<(i32, String)>,
+    custom_art: std::collections::HashMap<String, Option<slint::Image>>,
 }
 
 thread_local! {
@@ -139,6 +161,23 @@ pub fn run() -> Result<(), slint::PlatformError> {
         let mut core = c.borrow_mut();
         core.library = library::load_cache();
         core.playlists = store::load_playlists();
+        core.prefs = store::load_prefs();
+        if let Some(dir) = &core.prefs.download_dir {
+            crate::paths::set_download_dir(dir.into());
+        }
+    });
+    with(|ui, core| {
+        crate::eq::set_gains(core.prefs.eq);
+        ui.global::<State>().set_eq_presets(model(
+            crate::eq::PRESETS
+                .iter()
+                .map(|p| p.0.into())
+                .collect::<Vec<slint::SharedString>>(),
+        ));
+        show_eq(ui, core);
+        ui.global::<Palette>().set_theme(core.prefs.theme);
+        ui.global::<State>()
+            .set_download_dir(folder_label(&crate::paths::download_dir()).into());
     });
     with(|ui, core| refresh_library(ui, core));
     rescan();
@@ -243,6 +282,10 @@ fn bind(ui: &AppWindow) {
     st.on_save_edit(|| {
         with(|ui, core| {
             let st = ui.global::<State>();
+            if st.get_edit_mode() != 0 {
+                save_group_edit(ui, core);
+                return;
+            }
             let Some(track) = core.menu_track.clone() else {
                 return;
             };
@@ -345,14 +388,43 @@ fn bind(ui: &AppWindow) {
     });
 
     st.on_online_search(|q| search(q.to_string()));
-    st.on_online_download(|i| with(|ui, core| enqueue_download(ui, core, i as usize)));
+    st.on_online_download(|i| with(|ui, core| start_downloads(ui, core, vec![i as usize])));
     st.on_online_download_all(|| {
         with(|ui, core| {
-            for i in 0..core.online.len() {
-                if matches!(core.online[i].1, 0 | 4) {
-                    enqueue_download(ui, core, i);
-                }
+            let wanted = (0..core.online.len())
+                .filter(|i| matches!(core.online[*i].1, 0 | 4))
+                .collect();
+            start_downloads(ui, core, wanted);
+        })
+    });
+    st.on_change_download_dir(|| {
+        with(|ui, core| {
+            core.pending_downloads = None;
+            choose_folder(ui, core);
+        })
+    });
+    st.on_set_eq(|band, gain| {
+        with(|ui, core| {
+            if let Some(slot) = core.prefs.eq.get_mut(band as usize) {
+                *slot = gain.round().clamp(-crate::eq::MAX_DB, crate::eq::MAX_DB);
+                apply_eq(ui, core);
             }
+        })
+    });
+    st.on_set_eq_preset(|i| {
+        with(|ui, core| {
+            if let Some(preset) = crate::eq::PRESETS.get(i as usize) {
+                core.prefs.eq = preset.1;
+                apply_eq(ui, core);
+            }
+        })
+    });
+    st.on_set_theme(|i| {
+        with(|ui, core| {
+            ui.global::<Palette>().set_theme(i);
+            core.prefs.theme = i;
+            store::save_prefs(&core.prefs);
+            refresh_now_art(ui, core);
         })
     });
     st.on_clear_downloads(|| {
@@ -504,22 +576,37 @@ fn refresh_library(ui: &AppWindow, core: &mut Core) {
             })
             .collect(),
     ));
+    let view = core.view;
+    let custom: Vec<Option<slint::Image>> = groups
+        .iter()
+        .map(|(n, _, _)| custom_art(core, view, n))
+        .collect();
     st.set_groups(model(
         groups
             .iter()
-            .map(|(n, i, k)| {
-                let art = k.as_ref().and_then(|k| core.thumbs.get(k));
+            .zip(custom)
+            .map(|((n, i, k), custom)| {
+                let art = custom.or_else(|| {
+                    k.as_ref()
+                        .and_then(|k| core.thumbs.get(k))
+                        .map(|a| a.0.clone())
+                });
                 GroupItem {
                     name: n.clone().into(),
                     info: i.clone().into(),
-                    art: art.map(|a| a.0.clone()).unwrap_or_default(),
                     has_art: art.is_some(),
+                    art: art.unwrap_or_default(),
                 }
             })
             .collect(),
     ));
     st.set_group_title(core.group.clone().unwrap_or_default().into());
-    let hero = tracks.iter().map(|t| art_of(core, t)).find(|a| a.1);
+    let hero = core
+        .group
+        .clone()
+        .and_then(|g| custom_art(core, view, &g))
+        .map(|img| (img, true))
+        .or_else(|| tracks.iter().map(|t| art_of(core, t)).find(|a| a.1));
     st.set_has_group_art(hero.is_some());
     st.set_group_art(hero.map(|a| a.0).unwrap_or_default());
     let total: u32 = tracks.iter().map(|t| t.duration_secs).sum();
@@ -548,8 +635,27 @@ fn open_group_menu(ui: &AppWindow, core: &mut Core, key: String) {
         (MenuAction::ShuffleGroup, "Reproducir aleatorio"),
         (MenuAction::FillGroupMeta, "Completar datos y portadas"),
     ];
-    if core.view == 3 && key != FAVORITES {
-        actions.push((MenuAction::DeleteList, "Eliminar lista"));
+    match core.view {
+        1 => {
+            actions.push((MenuAction::EditGroup, "Renombrar artista…"));
+            actions.push((MenuAction::PickGroupCover, "Cambiar foto…"));
+            actions.push((MenuAction::RemoveGroupCover, "Quitar foto"));
+        }
+        2 => {
+            actions.push((MenuAction::EditGroup, "Editar álbum…"));
+            actions.push((MenuAction::PickGroupCover, "Cambiar portada…"));
+            actions.push((MenuAction::RemoveGroupCover, "Quitar portada"));
+        }
+        _ => {
+            if key != FAVORITES {
+                actions.push((MenuAction::EditGroup, "Renombrar lista…"));
+            }
+            actions.push((MenuAction::PickGroupCover, "Cambiar portada…"));
+            actions.push((MenuAction::RemoveGroupCover, "Quitar portada"));
+            if key != FAVORITES {
+                actions.push((MenuAction::DeleteList, "Eliminar lista"));
+            }
+        }
     }
     core.menu_group = Some(key.clone());
     core.menu_track = None;
@@ -570,7 +676,7 @@ fn refresh_now_art(ui: &AppWindow, core: &Core) {
         .and_then(|s| s.current.as_ref())
         .and_then(|t| core.thumbs.get(&art::key(t)))
         .map(|a| a.1)
-        .unwrap_or(slint::Color::from_rgb_u8(0x3b, 0x26, 0x6e));
+        .unwrap_or_else(|| ui.global::<Palette>().get_accent().darker(1.1));
     ui.global::<State>().set_now_tint(tint);
 }
 
@@ -749,6 +855,8 @@ fn open_track_menu(ui: &AppWindow, core: &mut Core, track: Track, queue_index: O
     }
     actions.push((MenuAction::FillMeta, "Completar datos y portada"));
     actions.push((MenuAction::Edit, "Editar datos…"));
+    actions.push((MenuAction::PickCover, "Cambiar portada…"));
+    actions.push((MenuAction::RemoveCover, "Quitar portada"));
     actions.push((MenuAction::Delete, "Eliminar archivo…"));
     let title = format!("{} — {}", track.title, track.artist);
     core.menu_track = Some(track);
@@ -848,8 +956,89 @@ fn menu_action(ui: &AppWindow, core: &mut Core, i: usize) {
                 } else {
                     t.album.into()
                 });
+                st.set_edit_mode(0);
                 st.set_edit_open(true);
             }
+        }
+        MenuAction::FolderDefault => {
+            apply_download_dir(ui, core, crate::paths::get().download_dir.clone())
+        }
+        MenuAction::FolderSd => {
+            if let Some((root, app)) = crate::platform::sd_card() {
+                // Android 10 and older only let apps write to their own folder on the card.
+                let shared = std::path::Path::new(&root).join("Music/Tein");
+                let dir = if std::fs::create_dir_all(&shared).is_ok()
+                    && crate::paths::is_writable(&shared)
+                {
+                    shared
+                } else {
+                    std::path::Path::new(&app).join("Music")
+                };
+                apply_download_dir(ui, core, dir);
+            } else {
+                toast(ui, core, "No se encontró una tarjeta SD".into());
+            }
+        }
+        MenuAction::FolderPick => {
+            if !crate::platform::pick_folder() {
+                toast(ui, core, "No se pudo abrir el selector de carpetas".into());
+            }
+        }
+        MenuAction::PickCover => {
+            if let Some(t) = track {
+                pick_cover(ui, core, CoverTarget::Tracks(vec![t]));
+            }
+        }
+        MenuAction::RemoveCover => {
+            if let Some(t) = track {
+                write_covers(ui, core, vec![t], None);
+            }
+        }
+        MenuAction::PickGroupCover | MenuAction::RemoveGroupCover => {
+            let Some(key) = core.menu_group.clone() else {
+                return;
+            };
+            let pick = matches!(action, MenuAction::PickGroupCover);
+            if core.view == 2 {
+                let tracks = group_tracks(core, 2, &key);
+                if pick {
+                    pick_cover(ui, core, CoverTarget::Tracks(tracks));
+                } else {
+                    write_covers(ui, core, tracks, None);
+                }
+            } else if pick {
+                pick_cover(ui, core, CoverTarget::Group(core.view, key));
+            } else {
+                let _ = std::fs::remove_file(group_art_file(core.view, &key));
+                core.custom_art.clear();
+                refresh_library(ui, core);
+            }
+        }
+        MenuAction::EditGroup => {
+            let Some(key) = core.menu_group.clone() else {
+                return;
+            };
+            let st = ui.global::<State>();
+            st.set_edit_title(key.clone().into());
+            let artist = if core.view == 2 {
+                let tracks = group_tracks(core, 2, &key);
+                match tracks.first() {
+                    Some(first) if tracks.iter().all(|t| t.artist == first.artist) => {
+                        first.artist.clone()
+                    }
+                    _ => String::new(),
+                }
+            } else {
+                String::new()
+            };
+            st.set_edit_artist(artist.into());
+            st.set_edit_mode(match core.view {
+                2 => 1,
+                1 => 2,
+                _ => 3,
+            });
+            core.edit_group = Some((core.view, key));
+            st.set_edit_open(true);
         }
         MenuAction::ConfirmDelete => {
             if let Some(t) = track {
@@ -1021,6 +1210,25 @@ fn on_player(ui: &AppWindow, core: &mut Core, event: Event) {
         Event::Rescan => {
             let _ = slint::invoke_from_event_loop(rescan);
         }
+        Event::FolderPicked => {
+            let path = crate::platform::take_picked(false);
+            if path.is_empty() {
+                toast(
+                    ui,
+                    core,
+                    "Elegí una carpeta del teléfono o de la tarjeta SD".into(),
+                );
+            } else {
+                apply_download_dir(ui, core, path.into());
+            }
+        }
+        Event::ImagePicked => {
+            let path = crate::platform::take_picked(true);
+            match core.cover_target.take() {
+                Some(target) if !path.is_empty() => use_picked_image(ui, core, path, target),
+                _ => toast(ui, core, "No se pudo leer la imagen".into()),
+            }
+        }
         Event::Changed(snap) => {
             let changed_track =
                 core.snapshot.as_ref().and_then(|s| s.current.as_ref()) != snap.current.as_ref();
@@ -1133,6 +1341,317 @@ fn refresh_online(ui: &AppWindow, core: &Core) {
         })
         .collect();
     ui.global::<State>().set_online(model(items));
+}
+
+fn apply_eq(ui: &AppWindow, core: &mut Core) {
+    crate::eq::set_gains(core.prefs.eq);
+    store::save_prefs(&core.prefs);
+    show_eq(ui, core);
+}
+
+fn show_eq(ui: &AppWindow, core: &Core) {
+    let st = ui.global::<State>();
+    st.set_eq(model(core.prefs.eq.to_vec()));
+    let preset = crate::eq::PRESETS.iter().position(|p| p.1 == core.prefs.eq);
+    st.set_eq_preset(preset.map_or(-1, |p| p as i32));
+}
+
+/// Shows internal storage as people know it instead of the raw mount point.
+fn folder_label(dir: &std::path::Path) -> String {
+    let text = dir.to_string_lossy();
+    match text.strip_prefix("/storage/emulated/0/") {
+        Some(rest) => format!("Memoria interna/{rest}"),
+        None => match text.strip_prefix("/storage/") {
+            Some(rest) => format!("Tarjeta SD/{}", rest.split_once('/').map_or("", |r| r.1)),
+            None => text.into_owned(),
+        },
+    }
+}
+
+fn choose_folder(ui: &AppWindow, core: &mut Core) {
+    let mut actions = vec![(MenuAction::FolderDefault, "Memoria interna · Música/Tein")];
+    if crate::platform::sd_card().is_some() {
+        actions.push((MenuAction::FolderSd, "Tarjeta SD"));
+    }
+    actions.push((MenuAction::FolderPick, "Elegir otra carpeta…"));
+    actions.push((MenuAction::Cancel, "Cancelar"));
+    core.menu_track = None;
+    core.menu_group = None;
+    show_menu(ui, core, "¿Dónde guardar las descargas?", actions);
+}
+
+fn apply_download_dir(ui: &AppWindow, core: &mut Core, dir: std::path::PathBuf) {
+    if std::fs::create_dir_all(&dir).is_err() || !crate::paths::is_writable(&dir) {
+        if crate::platform::can_write_all() {
+            toast(
+                ui,
+                core,
+                "Android no deja guardar ahí. Probá con otra carpeta".into(),
+            );
+        } else {
+            toast(
+                ui,
+                core,
+                "Activá «Acceso a todos los archivos» y elegí la carpeta otra vez".into(),
+            );
+            crate::platform::ask_write_all();
+        }
+        return;
+    }
+    let label = folder_label(&dir);
+    core.prefs.download_dir = Some(dir.to_string_lossy().into_owned());
+    store::save_prefs(&core.prefs);
+    crate::paths::set_download_dir(dir);
+    ui.global::<State>().set_download_dir(label.clone().into());
+    toast(ui, core, format!("Descargas en {label}"));
+    if let Some((generation, wanted)) = core.pending_downloads.take() {
+        if generation == core.search_gen {
+            for i in wanted {
+                enqueue_download(ui, core, i);
+            }
+        }
+    }
+    let _ = slint::invoke_from_event_loop(rescan);
+}
+
+/// Queues the downloads, asking first where to save them if that was never chosen.
+fn start_downloads(ui: &AppWindow, core: &mut Core, wanted: Vec<usize>) {
+    if core.prefs.download_dir.is_none() {
+        core.pending_downloads = Some((core.search_gen, wanted));
+        choose_folder(ui, core);
+        return;
+    }
+    for i in wanted {
+        enqueue_download(ui, core, i);
+    }
+}
+
+fn group_tracks(core: &Core, view: i32, key: &str) -> Vec<Track> {
+    match view {
+        1 => core
+            .library
+            .iter()
+            .filter(|t| t.artist == key)
+            .cloned()
+            .collect(),
+        2 => core
+            .library
+            .iter()
+            .filter(|t| t.album == key)
+            .cloned()
+            .collect(),
+        _ => core
+            .playlists
+            .iter()
+            .find(|p| p.name == key)
+            .map(|p| {
+                p.paths
+                    .iter()
+                    .filter_map(|path| core.library.iter().find(|t| &t.path == path))
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
+}
+
+fn group_art_file(view: i32, name: &str) -> std::path::PathBuf {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    (view, name).hash(&mut h);
+    crate::paths::get()
+        .data_dir
+        .join("group-art")
+        .join(format!("{:x}.jpg", h.finish()))
+}
+
+/// Picture chosen by the user for an artist or a playlist, if any.
+fn custom_art(core: &mut Core, view: i32, name: &str) -> Option<slint::Image> {
+    if view != 1 && view != 3 {
+        return None;
+    }
+    core.custom_art
+        .entry(format!("{view}\0{name}"))
+        .or_insert_with(|| {
+            let file = group_art_file(view, name);
+            file.exists()
+                .then(|| slint::Image::load_from_path(&file).ok())
+                .flatten()
+        })
+        .clone()
+}
+
+fn pick_cover(ui: &AppWindow, core: &mut Core, target: CoverTarget) {
+    if crate::platform::pick_image() {
+        core.cover_target = Some(target);
+    } else {
+        toast(ui, core, "No se pudo abrir la galería".into());
+    }
+}
+
+/// Square JPEG, at most `side` pixels wide, from any picked picture.
+fn square_jpeg(path: &str, side: u32) -> Result<Vec<u8>, String> {
+    let data = std::fs::read(path).map_err(|e| e.to_string())?;
+    let img = image::load_from_memory(&data)
+        .map_err(|_| "Formato de imagen no compatible: usá JPG, PNG o WebP".to_string())?;
+    let edge = img.width().min(img.height());
+    let img = img.crop_imm(
+        (img.width() - edge) / 2,
+        (img.height() - edge) / 2,
+        edge,
+        edge,
+    );
+    let img = if edge > side {
+        img.resize_exact(side, side, image::imageops::FilterType::Triangle)
+    } else {
+        img
+    };
+    let mut out = std::io::Cursor::new(Vec::new());
+    img.to_rgb8()
+        .write_to(&mut out, image::ImageFormat::Jpeg)
+        .map_err(|e| e.to_string())?;
+    Ok(out.into_inner())
+}
+
+fn use_picked_image(ui: &AppWindow, core: &mut Core, path: String, target: CoverTarget) {
+    match target {
+        CoverTarget::Tracks(tracks) => match square_jpeg(&path, 800) {
+            Ok(jpeg) => write_covers(ui, core, tracks, Some(jpeg)),
+            Err(e) => toast(ui, core, e),
+        },
+        CoverTarget::Group(view, key) => {
+            let file = group_art_file(view, &key);
+            let saved = square_jpeg(&path, 600).and_then(|jpeg| {
+                std::fs::create_dir_all(file.parent().unwrap_or(&file))
+                    .and_then(|_| std::fs::write(&file, jpeg))
+                    .map_err(|e| e.to_string())
+            });
+            match saved {
+                Ok(()) => {
+                    core.custom_art.clear();
+                    refresh_library(ui, core);
+                    toast(ui, core, "Imagen actualizada".into());
+                }
+                Err(e) => toast(ui, core, e),
+            }
+        }
+    }
+    let _ = std::fs::remove_file(path);
+}
+
+/// Embeds (or removes, with `None`) the cover of the given files in the background.
+fn write_covers(ui: &AppWindow, core: &mut Core, tracks: Vec<Track>, jpeg: Option<Vec<u8>>) {
+    if tracks.is_empty() {
+        return;
+    }
+    toast(ui, core, "Guardando portada…".into());
+    std::thread::spawn(move || {
+        let total = tracks.len();
+        let mut ok = 0;
+        for t in tracks {
+            let path = std::path::Path::new(&t.path);
+            if library::set_cover(path, jpeg.as_deref()).is_ok() {
+                ok += 1;
+                if let Some(new) = library::read_track(path) {
+                    post(move |ui, core| apply_track_update(ui, core, new));
+                }
+            }
+        }
+        post(move |ui, core| finish_batch(ui, core, ok, total, "Portada actualizada"));
+    });
+}
+
+fn finish_batch(ui: &AppWindow, core: &mut Core, ok: usize, total: usize, done: &str) {
+    if ok < total && !crate::platform::can_write_all() {
+        toast(
+            ui,
+            core,
+            "Activá «Acceso a todos los archivos» para Tein y probá de nuevo".into(),
+        );
+        crate::platform::ask_write_all();
+    } else if ok == total {
+        toast(ui, core, done.into());
+    } else {
+        toast(ui, core, format!("Se guardaron {ok} de {total} canciones"));
+    }
+}
+
+/// Saves the edit dialog for an album, an artist or a playlist.
+fn save_group_edit(ui: &AppWindow, core: &mut Core) {
+    let st = ui.global::<State>();
+    let Some((view, old)) = core.edit_group.clone() else {
+        return;
+    };
+    if st.get_edit_saving() {
+        return;
+    }
+    let name = st.get_edit_title().trim().to_string();
+    let artist = st.get_edit_artist().trim().to_string();
+    if name.is_empty() {
+        toast(ui, core, "Escribí un nombre".into());
+        return;
+    }
+    if view == 3 {
+        if name != old {
+            if old == FAVORITES || core.playlists.iter().any(|p| p.name == name) {
+                toast(ui, core, "Ya hay una lista con ese nombre".into());
+                return;
+            }
+            for p in core.playlists.iter_mut().filter(|p| p.name == old) {
+                p.name = name.clone();
+            }
+            store::save_playlists(&core.playlists);
+            rename_group(core, view, &old, &name);
+        }
+        st.set_edit_open(false);
+        refresh_library(ui, core);
+        toast(ui, core, "Cambios guardados".into());
+        return;
+    }
+    let tracks = group_tracks(core, view, &old);
+    let (album, artist) = if view == 2 {
+        (Some(name.clone()), (!artist.is_empty()).then_some(artist))
+    } else {
+        (None, Some(name.clone()))
+    };
+    st.set_edit_saving(true);
+    std::thread::spawn(move || {
+        let total = tracks.len();
+        let mut ok = 0;
+        for t in tracks {
+            let path = std::path::Path::new(&t.path);
+            if library::retag(path, album.as_deref(), artist.as_deref()).is_ok() {
+                ok += 1;
+                if let Some(new) = library::read_track(path) {
+                    post(move |ui, core| apply_track_update(ui, core, new));
+                }
+            }
+        }
+        post(move |ui, core| {
+            let st = ui.global::<State>();
+            st.set_edit_saving(false);
+            if ok > 0 {
+                rename_group(core, view, &old, &name);
+                st.set_edit_open(false);
+                refresh_library(ui, core);
+            }
+            finish_batch(ui, core, ok, total, "Cambios guardados");
+        });
+    });
+}
+
+/// Keeps the open group and its custom picture after a rename.
+fn rename_group(core: &mut Core, view: i32, old: &str, new: &str) {
+    if old == new {
+        return;
+    }
+    if view != 2 {
+        let _ = std::fs::rename(group_art_file(view, old), group_art_file(view, new));
+        core.custom_art.clear();
+    }
+    if core.view == view && core.group.as_deref() == Some(old) {
+        core.group = Some(new.to_string());
+    }
 }
 
 fn enqueue_download(ui: &AppWindow, core: &mut Core, i: usize) {

@@ -12,11 +12,14 @@ import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
+import android.media.AudioPlaybackConfiguration;
 import android.media.AudioManager;
 import android.media.MediaMetadata;
 import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.IBinder;
 import android.os.PowerManager;
 
@@ -34,6 +37,77 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
     private boolean pausedByFocusLoss;
     private boolean foreground;
     private PowerManager.WakeLock wakeLock;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    // Another app took the audio for good: wait until it goes quiet, then resume.
+    private boolean waitingForOthers;
+    private boolean sawOther;
+    private boolean parkedSeen;
+    private int quietChecks;
+    private long waitingSince;
+    private static final long WATCH_MS = 1500;
+    private static final long MAX_WAIT_MS = 3 * 60 * 60 * 1000L;
+    private static final long PAUSED_GRACE_MS = 10 * 60 * 1000L;
+
+    private final Runnable watchOthers = new Runnable() {
+        @Override
+        public void run() {
+            if (!waitingForOthers) return;
+            if (TeinBridge.playing) {
+                // Our stream is still closing; other players cannot be told apart yet.
+                handler.postDelayed(this, WATCH_MS);
+                return;
+            }
+            if (System.currentTimeMillis() - waitingSince > MAX_WAIT_MS) {
+                stopWaiting();
+                refresh();
+                return;
+            }
+            if (othersPlaying()) {
+                sawOther = true;
+                quietChecks = 0;
+            } else if (sawOther && ++quietChecks >= 2) {
+                stopWaiting();
+                hasFocus = audio.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+                if (hasFocus) TeinBridge.push(TeinBridge.ACTION_PLAY);
+                else refresh();
+                return;
+            }
+            handler.postDelayed(this, WATCH_MS);
+        }
+    };
+
+    private final Runnable detach = new Runnable() {
+        @Override
+        public void run() {
+            if (foreground && !TeinBridge.playing && !pausedByFocusLoss) {
+                stopForeground(STOP_FOREGROUND_DETACH);
+                foreground = false;
+            }
+        }
+    };
+
+    private boolean othersPlaying() {
+        for (AudioPlaybackConfiguration c : audio.getActivePlaybackConfigurations()) {
+            int usage = c.getAudioAttributes().getUsage();
+            if (usage == AudioAttributes.USAGE_MEDIA || usage == AudioAttributes.USAGE_GAME
+                    || usage == AudioAttributes.USAGE_UNKNOWN) return true;
+        }
+        return false;
+    }
+
+    private void stopWaiting() {
+        waitingForOthers = false;
+        pausedByFocusLoss = false;
+        handler.removeCallbacks(watchOthers);
+    }
+
+    private void userPaused() {
+        if (waitingForOthers || pausedByFocusLoss) {
+            stopWaiting();
+            refresh();
+        }
+        TeinBridge.push(TeinBridge.ACTION_PAUSE);
+    }
 
     private final BroadcastReceiver noisy = new BroadcastReceiver() {
         @Override
@@ -66,10 +140,10 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
         session = new MediaSession(this, "Tein");
         session.setCallback(new MediaSession.Callback() {
             @Override public void onPlay() { TeinBridge.push(TeinBridge.ACTION_PLAY); }
-            @Override public void onPause() { TeinBridge.push(TeinBridge.ACTION_PAUSE); }
+            @Override public void onPause() { userPaused(); }
             @Override public void onSkipToNext() { TeinBridge.push(TeinBridge.ACTION_NEXT); }
             @Override public void onSkipToPrevious() { TeinBridge.push(TeinBridge.ACTION_PREV); }
-            @Override public void onStop() { TeinBridge.push(TeinBridge.ACTION_PAUSE); }
+            @Override public void onStop() { userPaused(); }
             @Override public void onSeekTo(long positionMs) { TeinBridge.seek(positionMs); }
         });
         session.setSessionActivity(openApp());
@@ -92,8 +166,12 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
         if (playing && !wakeLock.isHeld()) wakeLock.acquire();
         if (!playing && wakeLock.isHeld()) wakeLock.release();
         if (playing) {
-            pausedByFocusLoss = false;
-            if (!hasFocus) hasFocus = audio.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+            // Playing again after being parked means the user resumed by hand.
+            if (waitingForOthers && parkedSeen) stopWaiting();
+            if (!waitingForOthers) pausedByFocusLoss = false;
+            if (!hasFocus && !waitingForOthers) hasFocus = audio.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+        } else if (waitingForOthers) {
+            parkedSeen = true;
         } else if (hasFocus && !pausedByFocusLoss) {
             audio.abandonAudioFocusRequest(focusRequest);
             hasFocus = false;
@@ -129,18 +207,22 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
                         .setShowActionsInCompactView(0, 1, 2))
                 .build();
 
-        if (playing) {
-            if (Build.VERSION.SDK_INT >= 29) {
-                startForeground(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-            } else {
-                startForeground(NOTIFICATION_ID, n);
+        handler.removeCallbacks(detach);
+        if (playing || foreground) {
+            // Stay in the foreground while paused so Android keeps the queue alive.
+            try {
+                if (Build.VERSION.SDK_INT >= 29) {
+                    startForeground(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                } else {
+                    startForeground(NOTIFICATION_ID, n);
+                }
+                foreground = true;
+            } catch (RuntimeException e) {
+                android.util.Log.w("tein", "No se pudo pasar a primer plano", e);
+                getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, n);
             }
-            foreground = true;
+            if (!playing && !pausedByFocusLoss) handler.postDelayed(detach, PAUSED_GRACE_MS);
         } else {
-            if (foreground) {
-                stopForeground(STOP_FOREGROUND_DETACH);
-                foreground = false;
-            }
             getSystemService(NotificationManager.class).notify(NOTIFICATION_ID, n);
         }
     }
@@ -160,7 +242,17 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
         switch (change) {
             case AudioManager.AUDIOFOCUS_LOSS:
                 hasFocus = false;
-                TeinBridge.push(TeinBridge.ACTION_PAUSE);
+                if (TeinBridge.playing || pausedByFocusLoss) {
+                    pausedByFocusLoss = true;
+                    waitingForOthers = true;
+                    sawOther = false;
+                    parkedSeen = false;
+                    quietChecks = 0;
+                    waitingSince = System.currentTimeMillis();
+                    TeinBridge.push(TeinBridge.ACTION_PARK);
+                    handler.removeCallbacks(watchOthers);
+                    handler.postDelayed(watchOthers, WATCH_MS);
+                }
                 break;
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
@@ -172,7 +264,7 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
             case AudioManager.AUDIOFOCUS_GAIN:
                 hasFocus = true;
                 if (pausedByFocusLoss) {
-                    pausedByFocusLoss = false;
+                    stopWaiting();
                     TeinBridge.push(TeinBridge.ACTION_PLAY);
                 }
                 break;
@@ -189,6 +281,7 @@ public class PlaybackService extends Service implements AudioManager.OnAudioFocu
     @Override
     public void onDestroy() {
         instance = null;
+        handler.removeCallbacksAndMessages(null);
         if (wakeLock.isHeld()) wakeLock.release();
         unregisterReceiver(noisy);
         if (hasFocus) audio.abandonAudioFocusRequest(focusRequest);

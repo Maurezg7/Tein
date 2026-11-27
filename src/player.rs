@@ -38,6 +38,8 @@ pub enum Event {
     Tick { pos: f32, dur: f32 },
     Error(String),
     Rescan,
+    FolderPicked,
+    ImagePicked,
 }
 
 #[derive(Clone)]
@@ -69,6 +71,7 @@ pub fn spawn(
                 volume: settings.volume.clamp(0.0, 1.0),
                 duration: 0.0,
                 cover: None,
+                parked: None,
                 on_event: Box::new(on_event),
             };
             engine.run(rx);
@@ -89,6 +92,8 @@ struct Engine {
     volume: f32,
     duration: f32,
     cover: Option<String>,
+    /// Position kept while the audio output is released to another app.
+    parked: Option<f32>,
     on_event: Box<dyn Fn(Event) + Send>,
 }
 
@@ -111,7 +116,10 @@ impl Engine {
                     platform::ACTION_PREV => self.handle(Cmd::Prev),
                     platform::ACTION_PAUSE if self.playing => self.handle(Cmd::Toggle),
                     platform::ACTION_PLAY if !self.playing => self.handle(Cmd::Toggle),
+                    platform::ACTION_PARK if self.playing => self.park(),
                     platform::ACTION_RESCAN => (self.on_event)(Event::Rescan),
+                    platform::ACTION_FOLDER => (self.on_event)(Event::FolderPicked),
+                    platform::ACTION_IMAGE => (self.on_event)(Event::ImagePicked),
                     _ => {}
                 }
             }
@@ -131,8 +139,35 @@ impl Engine {
         self.sink
             .as_ref()
             .map(|s| s.get_pos().as_secs_f32())
+            .or(self.parked)
             .unwrap_or(0.0)
             .min(self.duration.max(0.0))
+    }
+
+    /// Pauses and closes the audio output, remembering where to resume.
+    fn park(&mut self) {
+        let pos = self.position();
+        self.sink = None;
+        self.device = None;
+        self.parked = Some(pos);
+        self.playing = false;
+        self.changed();
+    }
+
+    fn resume_parked(&mut self) -> bool {
+        let Some(pos) = self.parked.take() else {
+            return false;
+        };
+        self.seek(pos);
+        match &self.sink {
+            Some(sink) => {
+                sink.play();
+                self.playing = true;
+                self.changed();
+                true
+            }
+            None => false,
+        }
     }
 
     fn handle(&mut self, cmd: Cmd) {
@@ -157,7 +192,11 @@ impl Engine {
                     self.playing = true;
                     self.changed();
                 }
-                None if !self.queue.is_empty() => self.start_playing(0),
+                None if !self.queue.is_empty() => {
+                    if !self.resume_parked() {
+                        self.start_playing(0);
+                    }
+                }
                 None => {}
             },
             Cmd::Next => self.skip(true),
@@ -213,6 +252,7 @@ impl Engine {
             Cmd::Forget(path) => {
                 let playing_it = self.queue.get(self.index).is_some_and(|t| t.path == path);
                 if playing_it {
+                    self.parked = None;
                     self.sink = None;
                     self.playing = false;
                     self.cover = None;
@@ -281,6 +321,7 @@ impl Engine {
             let Some(track) = self.queue.get(self.index).cloned() else {
                 return;
             };
+            self.parked = None;
             match self.open(&track) {
                 Ok((sink, duration)) => {
                     sink.pause();
@@ -351,6 +392,7 @@ impl Engine {
             return;
         };
         self.sink = None;
+        self.parked = None;
         match self.open(&track) {
             Ok((sink, dur)) => {
                 self.sink = Some(sink);
@@ -392,7 +434,7 @@ impl Engine {
             .unwrap_or(track.duration_secs as f32);
         let sink = rodio::Player::connect_new(self.device.as_ref().unwrap().mixer());
         sink.set_volume(self.volume);
-        sink.append(decoder);
+        sink.append(crate::eq::Equalizer::new(decoder));
         Ok((sink, dur))
     }
 
@@ -419,7 +461,7 @@ impl Engine {
         self.publish_media();
         if self.sink.is_none() {
             (self.on_event)(Event::Tick {
-                pos: 0.0,
+                pos: self.position(),
                 dur: self.duration,
             });
         }

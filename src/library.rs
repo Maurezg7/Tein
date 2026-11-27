@@ -39,10 +39,11 @@ pub fn scan(previous: &[Track]) -> Vec<Track> {
     let known: HashMap<&str, &Track> = previous.iter().map(|t| (t.path.as_str(), t)).collect();
     let mut files = Vec::new();
     let paths = crate::paths::get();
+    let chosen = crate::paths::download_dir();
     for dir in paths
         .music_dirs
         .iter()
-        .chain(std::iter::once(&paths.download_dir))
+        .chain([&paths.download_dir, &chosen])
     {
         walk(dir, 0, &mut files);
     }
@@ -221,6 +222,36 @@ pub fn edit_tags(path: &Path, title: &str, artist: &str, album: &str) -> Result<
             tag.remove_album()
         } else {
             tag.set_album(album.trim().into())
+        }
+    })
+}
+
+/// Renames the album and/or artist of a file, keeping every other tag.
+pub fn retag(path: &Path, album: Option<&str>, artist: Option<&str>) -> Result<(), String> {
+    update_tag(path, |tag| {
+        if let Some(album) = album {
+            tag.set_album(album.into());
+        }
+        if let Some(artist) = artist {
+            tag.set_artist(artist.into());
+        }
+    })
+}
+
+/// Replaces the embedded cover (JPEG bytes), or removes it with `None`.
+pub fn set_cover(path: &Path, cover: Option<&[u8]>) -> Result<(), String> {
+    use lofty::picture::{MimeType, Picture, PictureType};
+    update_tag(path, |tag| {
+        while tag.picture_count() > 0 {
+            tag.remove_picture(0);
+        }
+        if let Some(data) = cover {
+            tag.push_picture(
+                Picture::unchecked(data.to_vec())
+                    .pic_type(PictureType::CoverFront)
+                    .mime_type(MimeType::Jpeg)
+                    .build(),
+            );
         }
     })
 }

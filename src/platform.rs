@@ -9,7 +9,11 @@ pub const ACTION_PLAY: i32 = 5;
 pub fn seek_seconds(action: i64) -> Option<f32> {
     (action < 0).then(|| (-(action + 1)) as f32 / 1000.0)
 }
+/// Pause and release the audio output: another app took over.
+pub const ACTION_PARK: i32 = 6;
 pub const ACTION_RESCAN: i32 = 10;
+pub const ACTION_FOLDER: i32 = 11;
+pub const ACTION_IMAGE: i32 = 12;
 
 #[cfg(not(target_os = "android"))]
 pub fn now_playing(_title: &str, _artist: &str, _playing: bool, _pos: i64, _duration: i64) {}
@@ -26,6 +30,29 @@ pub fn can_write_all() -> bool {
 
 #[cfg(not(target_os = "android"))]
 pub fn ask_write_all() {}
+
+/// Opens the system folder picker; returns false when there is none.
+#[cfg(not(target_os = "android"))]
+pub fn pick_folder() -> bool {
+    false
+}
+
+/// Opens the system image picker; returns false when there is none.
+#[cfg(not(target_os = "android"))]
+pub fn pick_image() -> bool {
+    false
+}
+
+#[cfg(not(target_os = "android"))]
+pub fn take_picked(_image: bool) -> String {
+    String::new()
+}
+
+/// Root and app-owned folder of the removable SD card, if one is mounted.
+#[cfg(not(target_os = "android"))]
+pub fn sd_card() -> Option<(String, String)> {
+    None
+}
 
 #[cfg(target_os = "android")]
 mod android {
@@ -116,6 +143,43 @@ mod android {
         .unwrap_or(true)
     }
 
+    fn call_string(name: &str) -> String {
+        with_bridge(|env, class| {
+            let obj = env
+                .call_static_method(class, name, "()Ljava/lang/String;", &[])?
+                .l()?;
+            let text: String = env.get_string(&obj.into())?.into();
+            Ok(text)
+        })
+        .unwrap_or_default()
+    }
+
+    fn call_void(name: &str) -> bool {
+        with_bridge(|env, class| {
+            env.call_static_method(class, name, "()V", &[])?;
+            Ok(())
+        })
+        .is_some()
+    }
+
+    pub fn pick_folder() -> bool {
+        call_void("pickFolder")
+    }
+
+    pub fn pick_image() -> bool {
+        call_void("pickImage")
+    }
+
+    pub fn take_picked(image: bool) -> String {
+        call_string(if image { "takeImage" } else { "takeFolder" })
+    }
+
+    pub fn sd_card() -> Option<(String, String)> {
+        let text = call_string("sdCard");
+        let (root, app) = text.split_once('\n')?;
+        Some((root.to_string(), app.to_string()))
+    }
+
     pub fn ask_write_all() {
         with_bridge(|env, class| {
             env.call_static_method(class, "askWriteAll", "()V", &[])?;
@@ -125,7 +189,10 @@ mod android {
 }
 
 #[cfg(target_os = "android")]
-pub use android::{ask_write_all, can_write_all, init_bridge, now_playing, poll_action};
+pub use android::{
+    ask_write_all, can_write_all, init_bridge, now_playing, pick_folder, pick_image, poll_action,
+    sd_card, take_picked,
+};
 
 #[cfg(test)]
 mod tests {

@@ -52,7 +52,7 @@ fn run(job: &Job, on_update: &dyn Fn(Update)) -> Result<Track, String> {
         })
     };
     let (artist, title) = clean_names(&job.track);
-    let mut dir = crate::paths::get().download_dir.clone();
+    let mut dir = crate::paths::download_dir();
     if let Some(folder) = &job.folder {
         dir = dir.join(sanitize(folder));
     }

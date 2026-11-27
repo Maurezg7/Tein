@@ -96,7 +96,7 @@ export component Cover inherits Rectangle {
     in property <string> icon: Icons.note;
     border-radius: 8px;
     clip: true;
-    background: @linear-gradient(135deg, Palette.accent.darker(25%) 0%, #2a1f45 60%, Palette.surface-2 100%);
+    background: @linear-gradient(135deg, Palette.accent.darker(25%) 0%, Palette.accent.darker(120%).mix(Palette.surface-2, 0.5) 60%, Palette.surface-2 100%);
     if !root.has-image: Icon {
         commands: root.icon;
         size: min(root.width, root.height) * 0.42;
