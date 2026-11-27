@@ -5,6 +5,9 @@ on:
     paths: ['.github/workflows/apple.yml', 'packaging/apple/**', 'src/**', 'ui/**', 'Cargo.*', 'build.rs']
 permissions:
   contents: read
+concurrency:
+  group: tein-apple-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   mac:
     name: macOS ${{ matrix.arch }}
