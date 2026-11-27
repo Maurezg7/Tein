@@ -44,6 +44,8 @@ targets:
       - name: Compilar Tein con Cargo
         script: bash "$SRCROOT/ios-build.sh"
         basedOnDependencyAnalysis: false
+        outputFiles:
+          - "$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)"
 schemes:
   Tein:
     build:

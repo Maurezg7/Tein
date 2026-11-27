@@ -62,7 +62,7 @@ bool tein_ios_pick(bool image) {
     return true;
 }
 
-static void bind(MPRemoteCommand *command, int64_t action) {
+static void bindCommand(MPRemoteCommand *command, int64_t action) {
     [command addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
         tein_command(action);
         return MPRemoteCommandHandlerStatusSuccess;
@@ -75,8 +75,8 @@ void tein_ios_init(void) {
         static dispatch_once_t once;
         dispatch_once(&once, ^{
             MPRemoteCommandCenter *c = MPRemoteCommandCenter.sharedCommandCenter;
-            bind(c.togglePlayPauseCommand, 1); bind(c.nextTrackCommand, 2); bind(c.previousTrackCommand, 3);
-            bind(c.pauseCommand, 4); bind(c.playCommand, 5);
+            bindCommand(c.togglePlayPauseCommand, 1); bindCommand(c.nextTrackCommand, 2); bindCommand(c.previousTrackCommand, 3);
+            bindCommand(c.pauseCommand, 4); bindCommand(c.playCommand, 5);
             [c.changePlaybackPositionCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
                 NSTimeInterval t = ((MPChangePlaybackPositionCommandEvent *)event).positionTime;
                 if (!isfinite(t) || t < 0 || t > UINT32_MAX) return MPRemoteCommandHandlerStatusCommandFailed;

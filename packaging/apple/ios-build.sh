@@ -28,6 +28,7 @@ mkdir -p "$(dirname "$exe")"
 lipo -create "${binaries[@]}" -output "$exe"
 if [[ $profile == release ]]; then
     if [[ -n ${DWARF_DSYM_FOLDER_PATH:-} && -n ${DWARF_DSYM_FILE_NAME:-} ]]; then
+        mkdir -p "$DWARF_DSYM_FOLDER_PATH"
         dsymutil "$exe" -o "$DWARF_DSYM_FOLDER_PATH/$DWARF_DSYM_FILE_NAME"
     fi
     strip -S "$exe"

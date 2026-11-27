@@ -3,8 +3,6 @@ on:
   workflow_dispatch:
   pull_request:
     paths: ['.github/workflows/apple.yml', 'packaging/apple/**', 'src/**', 'ui/**', 'Cargo.*', 'build.rs']
-  push:
-    branches: ['devin/*-tein-apple']
 permissions:
   contents: read
 jobs:
