@@ -70,6 +70,15 @@ static void bindCommand(MPRemoteCommand *command, int64_t action) {
 }
 void tein_ios_init(void) {
     [AVAudioSession.sharedInstance setCategory:AVAudioSessionCategoryPlayback error:nil];
+    [NSNotificationCenter.defaultCenter addObserverForName:AVAudioSessionInterruptionNotification object:AVAudioSession.sharedInstance queue:nil usingBlock:^(NSNotification *note) {
+        NSDictionary *info = note.userInfo;
+        if ([info[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue] == AVAudioSessionInterruptionTypeBegan) {
+            tein_command(7);
+        } else {
+            BOOL resume = ([info[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue] & AVAudioSessionInterruptionOptionShouldResume) != 0;
+            tein_command(resume ? 9 : 8);
+        }
+    }];
     [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidBecomeActiveNotification object:nil queue:NSOperationQueue.mainQueue usingBlock:^(NSNotification *note) {
         tein_command(10); // Rescan files copied while Tein was in the background.
         static dispatch_once_t once;

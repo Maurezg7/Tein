@@ -11,6 +11,12 @@ pub fn seek_seconds(action: i64) -> Option<f32> {
 }
 /// Pause and release the audio output: another app took over.
 pub const ACTION_PARK: i32 = 6;
+#[cfg(target_os = "ios")]
+pub const INTERRUPTION_BEGAN: i32 = 7;
+#[cfg(target_os = "ios")]
+pub const INTERRUPTION_ENDED: i32 = 8;
+#[cfg(target_os = "ios")]
+pub const INTERRUPTION_MAY_RESUME: i32 = 9;
 pub const ACTION_RESCAN: i32 = 10;
 pub const ACTION_FOLDER: i32 = 11;
 pub const ACTION_IMAGE: i32 = 12;

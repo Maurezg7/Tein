@@ -72,6 +72,8 @@ pub fn spawn(
                 duration: 0.0,
                 cover: None,
                 parked: None,
+                #[cfg(target_os = "ios")]
+                resume_interrupted: false,
                 on_event: Box::new(on_event),
             };
             engine.run(rx);
@@ -94,6 +96,8 @@ struct Engine {
     cover: Option<String>,
     /// Position kept while the audio output is released to another app.
     parked: Option<f32>,
+    #[cfg(target_os = "ios")]
+    resume_interrupted: bool,
     on_event: Box<dyn Fn(Event) + Send>,
 }
 
@@ -111,6 +115,26 @@ impl Engine {
                     continue;
                 }
                 match action as i32 {
+                    #[cfg(target_os = "ios")]
+                    platform::INTERRUPTION_BEGAN => {
+                        if self.device.is_some() {
+                            self.resume_interrupted = self.playing;
+                            self.park();
+                        }
+                    }
+                    #[cfg(target_os = "ios")]
+                    platform::INTERRUPTION_ENDED | platform::INTERRUPTION_MAY_RESUME => {
+                        if std::mem::take(&mut self.resume_interrupted)
+                            && action == i64::from(platform::INTERRUPTION_MAY_RESUME)
+                            && !self.playing
+                        {
+                            self.resume_parked();
+                        }
+                    }
+                    #[cfg(target_os = "ios")]
+                    platform::ACTION_PAUSE | platform::ACTION_PARK if !self.playing => {
+                        self.resume_interrupted = false;
+                    }
                     platform::ACTION_TOGGLE => self.handle(Cmd::Toggle),
                     platform::ACTION_NEXT => self.handle(Cmd::Next),
                     platform::ACTION_PREV => self.handle(Cmd::Prev),
@@ -171,6 +195,13 @@ impl Engine {
     }
 
     fn handle(&mut self, cmd: Cmd) {
+        #[cfg(target_os = "ios")]
+        if matches!(
+            cmd,
+            Cmd::Toggle | Cmd::Play { .. } | Cmd::Jump(_) | Cmd::Next | Cmd::Prev | Cmd::Forget(_)
+        ) {
+            self.resume_interrupted = false;
+        }
         match cmd {
             Cmd::Play { queue, index } => {
                 self.original = queue.clone();
