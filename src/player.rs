@@ -72,6 +72,8 @@ pub fn spawn(
                 duration: 0.0,
                 cover: None,
                 parked: None,
+                #[cfg(target_os = "ios")]
+                resume_interrupted: false,
                 on_event: Box::new(on_event),
             };
             engine.run(rx);
@@ -94,6 +96,8 @@ struct Engine {
     cover: Option<String>,
     /// Position kept while the audio output is released to another app.
     parked: Option<f32>,
+    #[cfg(target_os = "ios")]
+    resume_interrupted: bool,
     on_event: Box<dyn Fn(Event) + Send>,
 }
 
@@ -111,6 +115,26 @@ impl Engine {
                     continue;
                 }
                 match action as i32 {
+                    #[cfg(target_os = "ios")]
+                    platform::INTERRUPTION_BEGAN => {
+                        if self.device.is_some() {
+                            self.resume_interrupted = self.playing;
+                            self.park();
+                        }
+                    }
+                    #[cfg(target_os = "ios")]
+                    platform::INTERRUPTION_ENDED | platform::INTERRUPTION_MAY_RESUME => {
+                        if std::mem::take(&mut self.resume_interrupted)
+                            && action == i64::from(platform::INTERRUPTION_MAY_RESUME)
+                            && !self.playing
+                        {
+                            self.resume_parked();
+                        }
+                    }
+                    #[cfg(target_os = "ios")]
+                    platform::ACTION_PAUSE | platform::ACTION_PARK if !self.playing => {
+                        self.resume_interrupted = false;
+                    }
                     platform::ACTION_TOGGLE => self.handle(Cmd::Toggle),
                     platform::ACTION_NEXT => self.handle(Cmd::Next),
                     platform::ACTION_PREV => self.handle(Cmd::Prev),
@@ -171,6 +195,13 @@ impl Engine {
     }
 
     fn handle(&mut self, cmd: Cmd) {
+        #[cfg(target_os = "ios")]
+        if matches!(
+            cmd,
+            Cmd::Toggle | Cmd::Play { .. } | Cmd::Jump(_) | Cmd::Next | Cmd::Prev | Cmd::Forget(_)
+        ) {
+            self.resume_interrupted = false;
+        }
         match cmd {
             Cmd::Play { queue, index } => {
                 self.original = queue.clone();
@@ -316,12 +347,23 @@ impl Engine {
     }
 
     fn seek(&mut self, secs: f32) {
+        if self.parked.is_some() {
+            if secs.is_finite() && self.duration > 0.0 {
+                let pos = secs.clamp(0.0, self.duration);
+                self.parked = Some(pos);
+                self.publish_media();
+                (self.on_event)(Event::Tick {
+                    pos,
+                    dur: self.duration,
+                });
+            }
+            return;
+        }
         if self.sink.is_none() {
             // A queued (or finished) track can be scrubbed before pressing Play.
             let Some(track) = self.queue.get(self.index).cloned() else {
                 return;
             };
-            self.parked = None;
             match self.open(&track) {
                 Ok((sink, duration)) => {
                     sink.pause();
@@ -528,4 +570,41 @@ fn cover_file(path: &str) -> Option<String> {
     let _ = std::fs::create_dir_all(f.parent()?);
     std::fs::write(&f, data).ok()?;
     Some(f.to_string_lossy().to_string())
+}
+
+#[cfg(all(test, not(any(target_os = "ios", target_os = "android"))))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn seek_while_parked_preserves_the_new_position_without_opening_audio() {
+        let (tx, rx) = channel();
+        let mut engine = Engine {
+            device: None,
+            sink: None,
+            queue: vec![],
+            original: vec![],
+            index: 0,
+            playing: false,
+            shuffle: false,
+            repeat: 0,
+            volume: 1.0,
+            duration: 60.0,
+            cover: None,
+            parked: Some(8.0),
+            on_event: Box::new(move |ev| tx.send(ev).unwrap()),
+        };
+        engine.seek(24.5);
+        assert_eq!(engine.parked, Some(24.5));
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(Event::Tick {
+                pos: 24.5,
+                dur: 60.0
+            })
+        ));
+        engine.seek(f32::NAN);
+        assert_eq!(engine.parked, Some(24.5));
+        assert!(engine.device.is_none() && engine.sink.is_none());
+    }
 }

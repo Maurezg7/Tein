@@ -1,0 +1,108 @@
+name: Tein Apple
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/apple.yml', 'packaging/apple/**', 'src/**', 'ui/**', 'Cargo.*', 'build.rs']
+permissions:
+  contents: read
+concurrency:
+  group: tein-apple-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  mac:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build and package
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          rustup update stable
+          if [[ $ARCH == x86_64 ]]; then rustup target add x86_64-apple-darwin; fi
+          bash packaging/apple/mac.sh "$ARCH"
+      - name: Open app and scan a local track
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -eu
+          temp=$(mktemp -d)
+          export HOME="$temp/home"
+          mkdir -p "$HOME/Music"
+          python3 -c 'import sys,wave; w=wave.open(sys.argv[1],"wb"); w.setparams((1,2,8000,0,"NONE","")); w.writeframes(bytes(16000)); w.close()' "$HOME/Music/Tein-smoke.wav"
+          ditto -x -k target/apple/*/*.zip "$temp"
+          lipo "$temp/Tein.app/Contents/MacOS/Tein" -verify_arch "$ARCH"
+          "$temp/Tein.app/Contents/MacOS/Tein" &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..60}; do
+            kill -0 "$pid"
+            if grep -q Tein-smoke.wav "$HOME/Library/Application Support/tein/library.json" 2>/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tein-macOS-${{ matrix.arch }}
+          path: target/apple/*/*.zip
+          if-no-files-found: error
+  ios:
+    name: iOS ${{ matrix.sdk }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk: iphonesimulator
+            target: aarch64-apple-ios-sim
+          - sdk: iphoneos
+            target: aarch64-apple-ios
+    runs-on: macos-15
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build for ${{ matrix.sdk }}
+        env:
+          SDK: ${{ matrix.sdk }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup update stable
+          rustup target add "$TARGET"
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          cd packaging/apple && xcodegen generate
+          xcodebuild -project Tein.xcodeproj -scheme Tein -configuration Release \
+            -sdk "$SDK" -arch arm64 -derivedDataPath "$RUNNER_TEMP/tein" \
+            CODE_SIGNING_ALLOWED=NO build
+      - name: Verify package
+        env:
+          SDK: ${{ matrix.sdk }}
+        run: |
+          app="$RUNNER_TEMP/tein/Build/Products/Release-$SDK/Tein.app"
+          plutil -lint "$app/Info.plist"
+          lipo "$app/Tein" -verify_arch arm64
+          if [[ $SDK == iphonesimulator ]]; then
+            codesign --force --sign - "$app"
+            python3 packaging/apple/simulator-smoke.py "$app"
+            ditto -c -k --keepParent "$app" Tein-iOS-Simulador.zip
+          fi
+      - uses: actions/upload-artifact@v4
+        if: matrix.sdk == 'iphonesimulator'
+        with:
+          name: Tein-iOS-Simulador
+          path: |
+            Tein-iOS-Simulador.zip
+            Tein-iPhone.png
+            Tein-iPad.png
+          if-no-files-found: error

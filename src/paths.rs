@@ -28,13 +28,37 @@ pub fn set_download_dir(dir: PathBuf) {
 }
 
 pub fn get() -> &'static Paths {
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     return PATHS.get_or_init(desktop_paths);
-    #[cfg(target_os = "android")]
-    PATHS.get().expect("Android paths not initialized")
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    PATHS.get().expect("mobile paths not initialized")
 }
 
-#[cfg(not(target_os = "android"))]
+#[cfg(target_os = "ios")]
+pub fn init_ios() -> std::io::Result<()> {
+    // An update can change the container UUID. Save track and playlist paths relative to it.
+    std::env::set_current_dir(dirs::home_dir().ok_or(std::io::ErrorKind::NotFound)?)?;
+    let docs = PathBuf::from("Documents");
+    PATHS.get_or_init(|| {
+        finish(
+            "Library/Application Support/Tein".into(),
+            "Library/Caches/Tein".into(),
+            docs.join("Música"),
+            vec![docs],
+        )
+    });
+    Ok(())
+}
+
+#[cfg(any(target_os = "ios", test))]
+pub fn documents_subdir(docs: &std::path::Path, chosen: &std::path::Path) -> Option<PathBuf> {
+    let root = docs.canonicalize().ok()?;
+    let path = chosen.canonicalize().ok()?;
+    path.is_dir().then_some(())?;
+    Some(docs.join(path.strip_prefix(root).ok()?))
+}
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn desktop_paths() -> Paths {
     let home = dirs::home_dir().expect("No se encontró la carpeta de usuario");
     let data = dirs::data_local_dir()
@@ -45,6 +69,28 @@ fn desktop_paths() -> Paths {
         .join("tein/cache");
     let music = dirs::audio_dir().unwrap_or_else(|| home.join("Music"));
     finish(data, cache, music.join("Tein"), vec![music])
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn folder_picker_accepts_only_real_descendants() {
+        let root = std::env::temp_dir().join(format!("tein-folders-{:016x}", fastrand::u64(..)));
+        let docs = root.join("Documents");
+        let music = docs.join("Mi música");
+        let other = root.join("Documents-fuera");
+        std::fs::create_dir_all(&music).unwrap();
+        std::fs::create_dir(&other).unwrap();
+        assert_eq!(super::documents_subdir(&docs, &music), Some(music));
+        assert_eq!(super::documents_subdir(&docs, &docs), Some(docs.clone()));
+        assert_eq!(super::documents_subdir(&docs, &other), None);
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&other, docs.join("enlace")).unwrap();
+            assert_eq!(super::documents_subdir(&docs, &docs.join("enlace")), None);
+        }
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }
 
 #[cfg(target_os = "android")]

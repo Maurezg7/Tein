@@ -9,6 +9,7 @@ export struct DownloadItem { title: string, status: string, progress: float, sta
 
 export global State {
     in property <bool> desktop;
+    in property <bool> ios;
     // Library
     in-out property <int> lib-view: 0;
     in-out property <string> lib-query;
@@ -706,7 +707,7 @@ component SettingsPage inherits VerticalLayout {
                 }
             }
             Text {
-                text: State.desktop ? "Podés usar tu carpeta de música u otra ubicación." : "Podés usar la memoria interna, la tarjeta SD u otra carpeta.";
+                text: State.ios ? "En Archivos, copiá tus canciones a «En mi iPhone» o «En mi iPad» → Tein. Podés elegir cualquier subcarpeta de Tein." : State.desktop ? "Podés usar tu carpeta de música u otra ubicación." : "Podés usar la memoria interna, la tarjeta SD u otra carpeta.";
                 color: Palette.muted;
                 font-size: 12px;
                 wrap: word-wrap;

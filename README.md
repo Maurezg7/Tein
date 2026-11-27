@@ -13,6 +13,7 @@ Tu biblioteca, un buscador por plataforma y descargas de música en una sola app
   <img src="https://img.shields.io/badge/Descargar%20APK-Android-8b5cf6?style=for-the-badge&logo=android&logoColor=white" alt="Descargar APK" height="48">
 </a>
 <a href="https://github.com/Maurezg7/Tein/releases/tag/desktop-v1.4.0">Descargar para PC</a>
+ · <a href="#tein-en-apple">Mac, iPhone y iPad</a>
 
 <br><br>
 
@@ -152,6 +153,34 @@ La [edición de escritorio 1.4.0](https://github.com/Maurezg7/Tein/releases/tag/
 **Primer uso:** Tein escanea la carpeta Música de tu cuenta (en Linux respeta `XDG_MUSIC_DIR`) y la carpeta elegida en **Ajustes → Cambiar carpeta**. Incluye el reproductor, las listas, el buscador, las descargas, el ecualizador y las skins de Android. En Linux aparece en el menú de aplicaciones y también se abre con `tein`. Los controles de notificación y de pantalla bloqueada de Android no se trasladan al escritorio.
 
 Los paquetes de Linux necesitan una sesión gráfica y una salida de audio ALSA (puede ser PipeWire o PulseAudio con compatibilidad ALSA). Instalan Zenity para los selectores de archivos. Si el controlador gráfico no ofrece OpenGL, probá `SLINT_BACKEND=winit-software tein`. No son para ARM ni para Void musl. Para verificar la descarga, compará su SHA-256 con **SHA256SUMS** en la release.
+
+## Tein en Apple
+
+| Equipo | Música local | Instalación |
+|---|---|---|
+| Mac Intel o Apple Silicon (macOS 13+) | Tein lee `~/Music`. En **Ajustes → Cambiar carpeta** podés elegir otra carpeta local. | El [workflow de Apple](https://github.com/Maurezg7/Tein/actions/workflows/apple.yml) genera un ZIP por procesador. En un run aprobado (verde), abrí **Artifacts**, elegí `Tein-macOS-arm64` (chips M) o `Tein-macOS-x86_64` (Intel), extraé los ZIP y mové **Tein.app** a Aplicaciones. |
+| iPhone y iPad (iOS/iPadOS 17+) | En **Archivos → En mi iPhone/iPad → Tein**, copiá canciones. Las descargas van a **Música** dentro de Tein; podés elegir otra subcarpeta ahí. | Proyecto para Xcode; **no hay IPA de distribución, TestFlight ni publicación en App Store**. El ZIP del simulador ARM64 no funciona en un dispositivo físico. |
+
+En Mac la firma es local (*ad hoc*), sin Developer ID ni notarización: macOS puede bloquear el primer arranque. No hace falta desactivar Gatekeeper; si preferís no abrir una compilación sin notarizar, compilá desde el código. En iOS, borrar Tein borra su carpeta local: copiá la música a otra ubicación antes de desinstalar. Tein no accede al catálogo privado de la app Música.
+
+### Compilar en un Mac
+
+Desde la raíz del proyecto, con Xcode, sus herramientas de línea de comandos y Rust estable instalados:
+
+```bash
+# macOS: produce el ZIP para el procesador del Mac
+bash packaging/apple/mac.sh
+
+# iOS: XcodeGen, el SDK de iOS y el runtime del simulador en Xcode
+brew install xcodegen
+rustup target add aarch64-apple-ios aarch64-apple-ios-sim
+# En un Mac Intel, el simulador usa x86_64-apple-ios en su lugar.
+cd packaging/apple
+xcodegen generate
+open Tein.xcodeproj
+```
+
+En Xcode elegí **Tein**, seleccioná un simulador iPhone o iPad y pulsá **Run**. Para un dispositivo propio, conectalo, elegí un equipo en **Signing & Capabilities**, cambiá el identificador si Xcode lo pide y activá el modo desarrollador del dispositivo. Una [cuenta personal gratuita](https://developer.apple.com/support/compare-memberships/) permite pruebas limitadas; para distribuir por TestFlight o App Store se necesita Apple Developer Program. El proyecto no incluye certificados ni perfiles.
 
 ## Instalación en Android
 
