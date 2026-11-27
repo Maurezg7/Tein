@@ -39,7 +39,7 @@ jobs:
           mkdir -p "$HOME/Music"
           python3 -c 'import sys,wave; w=wave.open(sys.argv[1],"wb"); w.setparams((1,2,8000,0,"NONE","")); w.writeframes(bytes(16000)); w.close()' "$HOME/Music/Tein-smoke.wav"
           ditto -x -k target/apple/*/*.zip "$temp"
-          lipo -verify_arch "$ARCH" "$temp/Tein.app/Contents/MacOS/Tein"
+          lipo "$temp/Tein.app/Contents/MacOS/Tein" -verify_arch "$ARCH"
           "$temp/Tein.app/Contents/MacOS/Tein" &
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
@@ -88,7 +88,7 @@ jobs:
         run: |
           app="$RUNNER_TEMP/tein/Build/Products/Release-$SDK/Tein.app"
           plutil -lint "$app/Info.plist"
-          lipo -verify_arch arm64 "$app/Tein"
+          lipo "$app/Tein" -verify_arch arm64
           if [[ $SDK == iphonesimulator ]]; then
             codesign --force --sign - "$app"
             python3 packaging/apple/simulator-smoke.py "$app"
