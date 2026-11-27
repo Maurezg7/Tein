@@ -347,12 +347,23 @@ impl Engine {
     }
 
     fn seek(&mut self, secs: f32) {
+        if self.parked.is_some() {
+            if secs.is_finite() && self.duration > 0.0 {
+                let pos = secs.clamp(0.0, self.duration);
+                self.parked = Some(pos);
+                self.publish_media();
+                (self.on_event)(Event::Tick {
+                    pos,
+                    dur: self.duration,
+                });
+            }
+            return;
+        }
         if self.sink.is_none() {
             // A queued (or finished) track can be scrubbed before pressing Play.
             let Some(track) = self.queue.get(self.index).cloned() else {
                 return;
             };
-            self.parked = None;
             match self.open(&track) {
                 Ok((sink, duration)) => {
                     sink.pause();
@@ -559,4 +570,41 @@ fn cover_file(path: &str) -> Option<String> {
     let _ = std::fs::create_dir_all(f.parent()?);
     std::fs::write(&f, data).ok()?;
     Some(f.to_string_lossy().to_string())
+}
+
+#[cfg(all(test, not(any(target_os = "ios", target_os = "android"))))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn seek_while_parked_preserves_the_new_position_without_opening_audio() {
+        let (tx, rx) = channel();
+        let mut engine = Engine {
+            device: None,
+            sink: None,
+            queue: vec![],
+            original: vec![],
+            index: 0,
+            playing: false,
+            shuffle: false,
+            repeat: 0,
+            volume: 1.0,
+            duration: 60.0,
+            cover: None,
+            parked: Some(8.0),
+            on_event: Box::new(move |ev| tx.send(ev).unwrap()),
+        };
+        engine.seek(24.5);
+        assert_eq!(engine.parked, Some(24.5));
+        assert!(matches!(
+            rx.try_recv(),
+            Ok(Event::Tick {
+                pos: 24.5,
+                dur: 60.0
+            })
+        ));
+        engine.seek(f32::NAN);
+        assert_eq!(engine.parked, Some(24.5));
+        assert!(engine.device.is_none() && engine.sink.is_none());
+    }
 }
