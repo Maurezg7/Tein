@@ -4,7 +4,7 @@
 
 <br>
 
-**Reproductor de música liviano para Android, hecho en Rust.**
+**Reproductor de música para Android, Windows y Linux, hecho en Rust.**
 Tu biblioteca, un buscador por plataforma y descargas de música en una sola app. Admite enlaces de YouTube, SoundCloud, Audius, Spotify y Apple Music.
 
 <br>
@@ -12,6 +12,7 @@ Tu biblioteca, un buscador por plataforma y descargas de música en una sola app
 <a href="https://github.com/Maurezg7/Tein/raw/main/release/Tein.apk">
   <img src="https://img.shields.io/badge/Descargar%20APK-Android-8b5cf6?style=for-the-badge&logo=android&logoColor=white" alt="Descargar APK" height="48">
 </a>
+<a href="https://github.com/Maurezg7/Tein/releases/tag/desktop-v1.4.0">Descargar para PC</a>
 
 <br><br>
 
@@ -136,7 +137,23 @@ En Android 11 o superior, si Android impide editar o borrar un archivo de otra a
 
 [Revisión de seguridad de la versión 1.4: correcciones, permisos y dependencias](docs/revision-1.4.md).
 
-## Instalación
+## Instalación en PC
+
+La [edición de escritorio 1.4.0](https://github.com/Maurezg7/Tein/releases/tag/desktop-v1.4.0) es para **PC Intel/AMD de 64 bits**. Usá el paquete de tu sistema; no necesitás Rust.
+
+| Sistema | Descarga | Desde la carpeta de descarga |
+|---|---|---|
+| Windows 10/11 x64 | [ZIP portátil](https://github.com/Maurezg7/Tein/releases/download/desktop-v1.4.0/Tein-1.4.0-windows-x64.zip) | Extraé el ZIP y abrí **Tein.exe**. No requiere administrador; no tiene firma Authenticode. |
+| Debian 12 o posterior | [.deb](https://github.com/Maurezg7/Tein/releases/download/desktop-v1.4.0/tein_1.4.0-1_amd64.deb) | `sudo apt install ./tein_1.4.0-1_amd64.deb` |
+| Fedora | [.rpm](https://github.com/Maurezg7/Tein/releases/download/desktop-v1.4.0/tein-1.4.0-1.x86_64.rpm) | `sudo dnf install ./tein-1.4.0-1.x86_64.rpm` |
+| Arch Linux | [.pkg.tar.zst](https://github.com/Maurezg7/Tein/releases/download/desktop-v1.4.0/tein-1.4.0-1-x86_64.pkg.tar.zst) | `sudo pacman -U ./tein-1.4.0-1-x86_64.pkg.tar.zst` |
+| Void Linux **glibc** | [.xbps](https://github.com/Maurezg7/Tein/releases/download/desktop-v1.4.0/tein-1.4.0_1.x86_64.xbps) | `xbps-rindex -a ./tein-1.4.0_1.x86_64.xbps` y luego `sudo xbps-install --repository="$PWD" tein` |
+
+**Primer uso:** Tein escanea la carpeta Música de tu cuenta (en Linux respeta `XDG_MUSIC_DIR`) y la carpeta elegida en **Ajustes → Cambiar carpeta**. Incluye el reproductor, las listas, el buscador, las descargas, el ecualizador y las skins de Android. En Linux aparece en el menú de aplicaciones y también se abre con `tein`. Los controles de notificación y de pantalla bloqueada de Android no se trasladan al escritorio.
+
+Los paquetes de Linux necesitan una sesión gráfica y una salida de audio ALSA (puede ser PipeWire o PulseAudio con compatibilidad ALSA). Instalan Zenity para los selectores de archivos. Si el controlador gráfico no ofrece OpenGL, probá `SLINT_BACKEND=winit-software tein`. No son para ARM ni para Void musl. Para verificar la descarga, compará su SHA-256 con **SHA256SUMS** en la release.
+
+## Instalación en Android
 
 1. Descargá **[Tein.apk](https://github.com/Maurezg7/Tein/raw/main/release/Tein.apk)** desde el celular.
 2. Abrilo y aceptá *Instalar apps desconocidas* si Android lo pide.
@@ -196,6 +213,8 @@ cargo run --bin tein-desktop
 cargo test --lib                       # tests offline
 TEIN_TEST_AUDIO=/ruta/a/ejemplo.m4a cargo test --lib -- --include-ignored --test-threads=1
 ```
+
+Para generar paquetes y probar una instalación aislada, consultá la [guía de empaquetado](packaging/desktop/README.md).
 
 ## Hecho con
 

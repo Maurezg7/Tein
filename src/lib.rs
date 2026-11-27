@@ -16,10 +16,8 @@ mod store;
 #[cfg(all(test, not(target_os = "android")))]
 mod input_layout_tests;
 
-pub fn run() {
-    if let Err(e) = app::run() {
-        log::error!("UI error: {e}");
-    }
+pub fn run_desktop() -> Result<(), slint::PlatformError> {
+    app::run()
 }
 
 #[cfg(target_os = "android")]
@@ -34,5 +32,7 @@ fn android_main(app: slint::android::AndroidApp) {
     paths::init_android(&app);
     platform::init_bridge();
     slint::android::init(app).expect("Slint Android init");
-    run();
+    if let Err(e) = app::run() {
+        log::error!("UI error: {e}");
+    }
 }

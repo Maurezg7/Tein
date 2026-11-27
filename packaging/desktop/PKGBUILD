@@ -1,0 +1,14 @@
+pkgname=tein
+pkgver=1.4.0
+pkgrel=1
+pkgdesc='Reproductor de música en Rust con biblioteca, descargas y skins'
+arch=('x86_64')
+url='https://github.com/Maurezg7/Tein'
+license=('MIT' 'OFL-1.1')
+depends=('glibc>=2.35' 'alsa-lib' 'fontconfig' 'libx11' 'libxkbcommon-x11' 'libxcursor' 'libxi' 'libglvnd' 'wayland' 'zenity' 'xdg-utils')
+options=('!strip' '!debug')
+source=('payload.tar.gz')
+# package.sh supplies the checksum of the local build.
+package() {
+  cp -a "$srcdir/usr" "$pkgdir/"
+}

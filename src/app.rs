@@ -171,6 +171,8 @@ fn strings(v: &[&str]) -> ModelRc<SharedString> {
 
 pub fn run() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
+    ui.global::<State>()
+        .set_desktop(!cfg!(target_os = "android"));
     UI_ATTACHED.store(true, Ordering::Release);
     UI.with(|u| *u.borrow_mut() = Some(ui.as_weak()));
     let settings = store::load_settings();
@@ -1294,11 +1296,8 @@ fn on_player(ui: &AppWindow, core: &mut Core, event: Event) {
         Event::FolderPicked => {
             let path = crate::platform::take_picked(false);
             if path.is_empty() {
-                toast(
-                    ui,
-                    core,
-                    "Elegí una carpeta del teléfono o de la tarjeta SD".into(),
-                );
+                core.pending_downloads = None;
+                toast(ui, core, "No se seleccionó una carpeta".into());
             } else {
                 apply_download_dir(ui, core, path.into());
             }
@@ -1307,7 +1306,7 @@ fn on_player(ui: &AppWindow, core: &mut Core, event: Event) {
             let path = crate::platform::take_picked(true);
             match core.cover_target.take() {
                 Some(target) if !path.is_empty() => use_picked_image(ui, core, path, target),
-                _ => toast(ui, core, "No se pudo leer la imagen".into()),
+                _ => toast(ui, core, "No se seleccionó una imagen".into()),
             }
         }
         Event::Changed(snap) => {
@@ -1491,7 +1490,10 @@ fn folder_label(dir: &std::path::Path) -> String {
 }
 
 fn choose_folder(ui: &AppWindow, core: &mut Core) {
-    let mut actions = vec![(MenuAction::FolderDefault, "Memoria interna · Música/Tein")];
+    let mut actions = vec![(
+        MenuAction::FolderDefault,
+        "Carpeta predeterminada · Música/Tein",
+    )];
     if crate::platform::sd_card().is_some() {
         actions.push((MenuAction::FolderSd, "Tarjeta SD"));
     }
@@ -1508,7 +1510,7 @@ fn apply_download_dir(ui: &AppWindow, core: &mut Core, dir: std::path::PathBuf) 
             toast(
                 ui,
                 core,
-                "Android no deja guardar ahí. Probá con otra carpeta".into(),
+                "No se puede escribir ahí. Probá con otra carpeta".into(),
             );
         } else {
             toast(
@@ -1633,7 +1635,16 @@ fn pick_cover(ui: &AppWindow, core: &mut Core, target: CoverTarget) {
 
 /// Square JPEG, at most `side` pixels wide, from any picked picture.
 fn square_jpeg(path: &str, side: u32) -> Result<Vec<u8>, String> {
-    let data = std::fs::read(path).map_err(|e| e.to_string())?;
+    use std::io::Read;
+    const LIMIT: u64 = 32 * 1024 * 1024;
+    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut data = Vec::new();
+    file.take(LIMIT + 1)
+        .read_to_end(&mut data)
+        .map_err(|e| e.to_string())?;
+    if data.len() as u64 > LIMIT {
+        return Err("La imagen supera los 32 MiB".into());
+    }
     let img = crate::art::decode(&data)
         .ok_or("Imagen demasiado grande o incompatible: probá con un JPG, PNG o WebP más chico")?;
     let edge = img.width().min(img.height());
@@ -1678,6 +1689,8 @@ fn use_picked_image(ui: &AppWindow, core: &mut Core, path: String, target: Cover
             }
         }
     }
+    // Only Android returns an app-owned temporary copy.
+    #[cfg(target_os = "android")]
     let _ = std::fs::remove_file(path);
 }
 

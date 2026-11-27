@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Tein
+GenericName=Music Player
+GenericName[es]=Reproductor de música
+Comment=Play and organize your music library
+Comment[es]=Reproducí y organizá tu biblioteca de música
+Exec=tein
+Icon=tein
+Terminal=false
+Categories=AudioVideo;Audio;Player;

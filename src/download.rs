@@ -221,10 +221,30 @@ fn sanitize(name: &str) -> String {
     while name.len() > 220 {
         name.pop();
     }
+    let name = name.trim_end_matches(['.', ' ']);
     if name.is_empty() {
-        "Sin nombre".into()
+        return "Sin nombre".into();
+    }
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or(name)
+        .trim_end()
+        .to_ascii_uppercase();
+    if matches!(
+        stem.as_str(),
+        "CON" | "AUX" | "PRN" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || ["COM", "LPT"].iter().any(|prefix| {
+        stem.strip_prefix(prefix).is_some_and(|s| {
+            matches!(
+                s,
+                "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "¹" | "²" | "³"
+            )
+        })
+    }) {
+        format!("_{name}")
     } else {
-        name
+        name.into()
     }
 }
 
@@ -240,5 +260,9 @@ mod tests {
             assert!(matches!(parts.next(), Some(Component::Normal(_))));
             assert!(parts.next().is_none() && name.len() <= 220);
         }
+        for name in ["con", "Lpt5.demo", "COM¹", "NuL.mp3", "aux"] {
+            assert!(sanitize(name).starts_with('_'));
+        }
+        assert_eq!(sanitize("Comfort"), "Comfort");
     }
 }

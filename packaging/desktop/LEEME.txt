@@ -1,0 +1,10 @@
+Tein 1.4.0 para Windows 10/11 de 64 bits
+
+Extraé el ZIP completo y abrí Tein.exe. No requiere instalación ni
+permisos de administrador. El ejecutable no tiene firma Authenticode.
+
+Tein busca canciones en la carpeta Música de tu cuenta. También escanea
+la carpeta que elijas en Ajustes → Cambiar carpeta. Guarda preferencias
+y listas de reproducción en los datos locales de tu usuario.
+
+Descargas y código oficial: https://github.com/Maurezg7/Tein

@@ -8,6 +8,7 @@ export struct OnlineItem { title: string, subtitle: string, state: int, art: ima
 export struct DownloadItem { title: string, status: string, progress: float, state: int }
 
 export global State {
+    in property <bool> desktop;
     // Library
     in-out property <int> lib-view: 0;
     in-out property <string> lib-query;
@@ -705,7 +706,7 @@ component SettingsPage inherits VerticalLayout {
                 }
             }
             Text {
-                text: "Podés usar la memoria interna, la tarjeta SD u otra carpeta.";
+                text: State.desktop ? "Podés usar tu carpeta de música u otra ubicación." : "Podés usar la memoria interna, la tarjeta SD u otra carpeta.";
                 color: Palette.muted;
                 font-size: 12px;
                 wrap: word-wrap;
@@ -1436,9 +1437,10 @@ export component AppWindow inherits Window {
         { icon: Icons.settings, label: "Ajustes" },
     ];
     title: "Tein";
+    icon: @image-url("../docs/logo.png");
     background: Palette.backdrop;
-    preferred-width: 400px;
-    preferred-height: 820px;
+    preferred-width: State.desktop ? 1080px : 400px;
+    preferred-height: State.desktop ? 700px : 820px;
     default-font-size: 14px;
 
     Decor { }

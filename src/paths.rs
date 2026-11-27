@@ -28,21 +28,23 @@ pub fn set_download_dir(dir: PathBuf) {
 }
 
 pub fn get() -> &'static Paths {
-    PATHS.get_or_init(desktop_paths)
+    #[cfg(not(target_os = "android"))]
+    return PATHS.get_or_init(desktop_paths);
+    #[cfg(target_os = "android")]
+    PATHS.get().expect("Android paths not initialized")
 }
 
+#[cfg(not(target_os = "android"))]
 fn desktop_paths() -> Paths {
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."));
-    let data_dir = home.join(".local/share/tein");
-    let music = home.join("Music");
-    finish(
-        data_dir.clone(),
-        data_dir.join("cache"),
-        music.join("Tein"),
-        vec![music],
-    )
+    let home = dirs::home_dir().expect("No se encontró la carpeta de usuario");
+    let data = dirs::data_local_dir()
+        .unwrap_or_else(|| home.join(".local/share"))
+        .join("tein");
+    let cache = dirs::cache_dir()
+        .unwrap_or_else(|| home.join(".cache"))
+        .join("tein/cache");
+    let music = dirs::audio_dir().unwrap_or_else(|| home.join("Music"));
+    finish(data, cache, music.join("Tein"), vec![music])
 }
 
 #[cfg(target_os = "android")]
@@ -72,10 +74,11 @@ pub fn init_android(app: &slint::android::AndroidApp) {
 
 pub fn is_writable(dir: &std::path::Path) -> bool {
     // Android 11+ only lets apps create audio files in Music/, so the probe must look like one.
-    let probe = dir.join(".tein_probe.m4a");
-    let ok = std::fs::write(&probe, b"ok").is_ok();
-    let _ = std::fs::remove_file(probe);
-    ok
+    let probe = dir.join(format!(".tein_probe_{:016x}.m4a", fastrand::u64(..)));
+    if std::fs::File::create_new(&probe).is_err() {
+        return false;
+    }
+    std::fs::remove_file(probe).is_ok()
 }
 
 fn finish(

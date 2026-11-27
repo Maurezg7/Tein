@@ -2,7 +2,7 @@
 name = "tein"
 version = "0.1.0"
 edition = "2024"
-description = "Reproductor de música liviano para Android hecho en Rust"
+description = "Reproductor de música para Android, Windows y Linux hecho en Rust"
 license = "MIT"
 
 [lib]
@@ -28,6 +28,11 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png",
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 slint = { version = "1.19", default-features = false, features = ["backend-winit", "renderer-software"] }
+dirs = "6"
+webbrowser = { version = "1", default-features = false }
+
+[target.'cfg(windows)'.dependencies]
+rfd = { version = "0.15", default-features = false }
 
 [target.'cfg(target_os = "android")'.dependencies]
 slint = { version = "1.19", default-features = false, features = ["std", "compat-1-2", "image-default-formats", "backend-android-activity-06", "renderer-femtovg"] }
