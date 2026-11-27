@@ -92,4 +92,29 @@ fn long_input_preserves_text_and_keeps_actions_in_bounds() {
         assert!(saved.replace(false), "save, width: {width}");
         state.set_edit_open(false);
     }
+    let palette = ui.global::<crate::Palette>();
+    for (skin, name) in [
+        (64, "Reino Flotante"),
+        (65, "Casete del Parque"),
+        (66, "Barrio de Papel"),
+        (67, "Mundo de Bloques"),
+        (68, "Gruta de Cristal"),
+    ] {
+        palette.set_theme(skin);
+        assert!(palette.get_skin());
+        assert_eq!(palette.get_name(), name);
+        assert!(!palette.get_shape().is_empty());
+        for width in [320, 800] {
+            window.set_size(PhysicalSize::new(width, 720));
+            ui.set_current_tab(1);
+            state.set_online_query(link.as_str().into());
+            let pad = if width < 600 { 16. } else { 24. };
+            click(&ui, width as f32 - pad - 23., 87. + 26.);
+            assert_eq!(
+                submitted.take().as_deref(),
+                Some(link.as_str()),
+                "{name}: {width}"
+            );
+        }
+    }
 }

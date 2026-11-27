@@ -3,7 +3,7 @@ use crate::net::{self, Result};
 use serde_json::{Value, json};
 
 pub fn is_link(s: &str) -> bool {
-    s.contains("open.spotify.com/") || s.starts_with("spotify:")
+    s.starts_with("https://open.spotify.com/") || s.starts_with("spotify:")
 }
 
 fn parse(input: &str) -> Option<(String, String)> {

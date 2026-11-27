@@ -1,4 +1,6 @@
 pub mod apple;
+pub mod audius;
+pub mod soundcloud;
 pub mod spotify;
 pub mod youtube;
 
@@ -10,6 +12,42 @@ pub enum Source {
     YouTube(String),
     /// Metadata only (Spotify / Apple Music): the audio is matched on YouTube when downloading.
     Match,
+    /// An Audius track id and its artwork URL.
+    Audius {
+        id: String,
+        art: String,
+        ext: String,
+    },
+    SoundCloud {
+        url: String,
+        art: String,
+    },
+}
+
+impl OnlineTrack {
+    pub fn thumb_key(&self) -> Option<&str> {
+        match &self.source {
+            Source::YouTube(id) => Some(id),
+            Source::Audius { art, .. } | Source::SoundCloud { art, .. } if !art.is_empty() => {
+                Some(art)
+            }
+            _ => None,
+        }
+    }
+    /// Cache key and URL of a small preview image, when the source has one.
+    pub fn thumb(&self) -> Option<(String, String)> {
+        match &self.source {
+            Source::YouTube(id) => Some((
+                id.clone(),
+                format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg"),
+            )),
+            Source::Audius { art, .. } if !art.is_empty() => {
+                Some((art.clone(), art.replace("480x480", "150x150")))
+            }
+            Source::SoundCloud { art, .. } if !art.is_empty() => Some((art.clone(), art.clone())),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -28,13 +66,20 @@ pub struct Resolved {
     pub collection: Option<String>,
 }
 
-/// Resolves free text (search) or a YouTube / Spotify / Apple Music link.
-pub fn resolve(input: &str) -> Result<Resolved> {
+/// Resolves a link from any supported service, or searches free text in `provider`
+/// (0 YouTube, 1 SoundCloud, 2 Audius).
+pub fn resolve_in(input: &str, provider: i32) -> Result<Resolved> {
     let input = input.trim();
     if input.is_empty() {
         return Err("Escribí algo para buscar".into());
     }
-    let is_link = |w: &str| spotify::is_link(w) || apple::is_link(w) || youtube::is_link(w);
+    let is_link = |w: &str| {
+        spotify::is_link(w)
+            || apple::is_link(w)
+            || youtube::is_link(w)
+            || soundcloud::is_link(w)
+            || audius::is_link(w)
+    };
     let input = input
         .split_whitespace()
         .find(|w| is_link(w))
@@ -48,7 +93,20 @@ pub fn resolve(input: &str) -> Result<Resolved> {
     if youtube::is_link(input) {
         return youtube::resolve_link(input);
     }
-    let tracks = youtube::search(input)?;
+    if soundcloud::is_link(input) {
+        return soundcloud::resolve(input);
+    }
+    if audius::is_link(input) {
+        return audius::resolve(input);
+    }
+    if input.contains("://") {
+        return Err("Pegá un enlace HTTPS de una plataforma compatible".into());
+    }
+    let tracks = match provider {
+        1 => soundcloud::search(input)?,
+        2 => audius::search(input)?,
+        _ => youtube::search(input)?,
+    };
     Ok(Resolved {
         label: format!("Resultados para \"{input}\""),
         tracks,
@@ -56,11 +114,17 @@ pub fn resolve(input: &str) -> Result<Resolved> {
     })
 }
 
+#[cfg(test)]
+pub fn resolve(input: &str) -> Result<Resolved> {
+    resolve_in(input, 0)
+}
+
 /// Finds the YouTube video id for a track, matching metadata when needed.
 pub fn video_id_for(track: &OnlineTrack) -> Result<String> {
     match &track.source {
         Source::YouTube(id) => Ok(id.clone()),
         Source::Match => youtube::find_best(&track.artist, &track.title, track.duration_secs),
+        _ => Err("Esta fuente no usa YouTube".into()),
     }
 }
 
@@ -74,7 +138,8 @@ pub fn format_duration(secs: u32) -> String {
 
 pub(crate) fn parse_clock(text: &str) -> u32 {
     text.split(':').fold(0, |acc, part| {
-        acc * 60 + part.trim().parse::<u32>().unwrap_or(0)
+        acc.saturating_mul(60)
+            .saturating_add(part.trim().parse::<u32>().unwrap_or(0))
     })
 }
 
@@ -98,6 +163,79 @@ mod tests {
         assert_eq!(format_duration(0), "0:00");
         assert_eq!(format_duration(75), "1:15");
         assert_eq!(format_duration(3725), "1:02:05");
+    }
+
+    /// Searches, downloads the first hit, then checks the file is readable and taggable.
+    fn fetch_first(provider: i32, query: &str) {
+        let r = resolve_in(query, provider).unwrap();
+        assert!(!r.tracks.is_empty());
+        let t = &r.tracks[0];
+        println!(
+            "{} - {} ({}s) {:?}",
+            t.artist,
+            t.title,
+            t.duration_secs,
+            t.thumb()
+        );
+        let dir = std::env::temp_dir().join(format!("tein-{}-{}", provider, fastrand::u64(..)));
+        let got = std::sync::Mutex::new(None);
+        let job = crate::download::Job {
+            id: 1,
+            track: t.clone(),
+            folder: None,
+        };
+        let track = crate::download::run_in(
+            &job,
+            &|u| {
+                if let crate::download::Update::Progress { status, .. } = u {
+                    *got.lock().unwrap() = Some(status);
+                }
+            },
+            dir.clone(),
+        )
+        .unwrap();
+        println!(
+            "{:?} {}s, last status {:?}",
+            track.path,
+            track.duration_secs,
+            got.lock().unwrap()
+        );
+        assert!(track.duration_secs > 10);
+        assert_eq!(track.title, crate::download::clean_names(t).1);
+        assert!(crate::library::cover(&track.path).is_some());
+        let file = std::fs::File::open(&track.path).unwrap();
+        let dec = rodio::Decoder::try_from(file).unwrap();
+        let mut dec = dec;
+        assert!(dec.by_ref().take(200_000).count() == 200_000);
+        use rodio::Source as _;
+        dec.try_seek(std::time::Duration::from_secs(5)).unwrap();
+        assert!(dec.take(200_000).count() == 200_000);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    #[ignore = "network"]
+    fn soundcloud_download() {
+        assert!(!resolve_in("lofi", 1).unwrap().tracks.is_empty());
+        fetch_first(
+            1,
+            "https://soundcloud.com/scifri/adam-aleksic-responds-to-callers-words",
+        );
+    }
+
+    #[test]
+    #[ignore = "network"]
+    fn audius_download() {
+        fetch_first(2, "Audius Wave Nichelle Wattz");
+    }
+
+    #[test]
+    #[ignore = "network"]
+    fn soundcloud_and_audius_links() {
+        let r = resolve("https://soundcloud.com/forss/sets/soulhack").unwrap();
+        println!("{} ({})", r.label, r.tracks.len());
+        assert!(!r.tracks.is_empty() && r.collection.as_deref() == Some("Soulhack"));
+        assert!(resolve("https://audius.co/sebbie2k/electronic-butterflies").is_err());
     }
 
     #[test]

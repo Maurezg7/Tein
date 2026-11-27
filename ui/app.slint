@@ -1,10 +1,10 @@
 import { ListView, Spinner } from "std-widgets.slint";
 import { Palette, Icons } from "theme.slint";
-import { Decor, Icon, IconButton, Chip, PillButton, Cover, Bar, ListRow, Card, InputField, EqBars } from "widgets.slint";
+import { Decor, Bevel, Spectrum, TitleStrip, Icon, IconButton, Chip, PillButton, Cover, Bar, ListRow, Card, InputField, EqBars } from "widgets.slint";
 
 export struct TrackItem { title: string, subtitle: string, trailing: string, playing: bool, art: image, has-art: bool }
 export struct GroupItem { name: string, info: string, art: image, has-art: bool }
-export struct OnlineItem { title: string, subtitle: string, state: int, art: image, has-art: bool }
+export struct OnlineItem { title: string, subtitle: string, state: int, art: image, has-art: bool, soundcloud: bool }
 export struct DownloadItem { title: string, status: string, progress: float, state: int }
 
 export global State {
@@ -29,11 +29,13 @@ export global State {
     callback rescan();
     // Online search (state: 0 = available, 1 = queued, 2 = downloading, 3 = done, 4 = error)
     in-out property <string> online-query;
+    in-out property <int> online-source: 0;
     in property <[OnlineItem]> online;
     in property <string> online-status;
     in property <bool> online-busy;
     callback online-search(string);
     callback online-download(int);
+    callback open-source(int);
     callback online-download-all();
     // Downloads (state: 0 = waiting, 1 = running, 2 = done, 3 = error)
     in property <[DownloadItem]> downloads;
@@ -407,12 +409,30 @@ component SearchPage inherits VerticalLayout {
         IconButton {
             icon: Icons.search;
             filled: true;
+            tint: Palette.on-accent;
             accessible-role: button;
             accessible-label: "Buscar";
             accessible-action-default => { State.online-search(State.online-query); }
             width: 46px;
             height: 46px;
             clicked => { State.online-search(State.online-query); }
+        }
+    }
+    HorizontalLayout {
+        padding-top: 10px;
+        padding-left: root.pad;
+        padding-right: root.pad;
+        spacing: 8px;
+        alignment: start;
+        for name[i] in ["YouTube", "SoundCloud", "Audius"]: Chip {
+            text: name;
+            active: State.online-source == i;
+            accessible-role: button;
+            accessible-label: "Buscar en " + name;
+            clicked => {
+                State.online-source = i;
+                if State.online-query != "" { State.online-search(State.online-query); }
+            }
         }
     }
     if State.online-busy || State.online-status != "": HorizontalLayout {
@@ -446,7 +466,7 @@ component SearchPage inherits VerticalLayout {
         vertical-stretch: 1;
         icon: Icons.search;
         title: "Encontrá cualquier canción";
-        text: "Buscá en YouTube o pegá un link de una canción, álbum o playlist.";
+        text: "Buscá en YouTube, SoundCloud o Audius, o pegá un link de una canción, álbum o playlist.";
         HorizontalLayout {
             alignment: center;
             spacing: 8px;
@@ -461,6 +481,18 @@ component SearchPage inherits VerticalLayout {
             SourceBadge {
                 text: "Apple Music";
                 tint: #fa2d48;
+            }
+        }
+        HorizontalLayout {
+            alignment: center;
+            spacing: 8px;
+            SourceBadge {
+                text: "SoundCloud";
+                tint: #ff5500;
+            }
+            SourceBadge {
+                text: "Audius";
+                tint: #cc0fe0;
             }
         }
     }
@@ -496,6 +528,13 @@ component SearchPage inherits VerticalLayout {
                         font-size: 12px;
                         overflow: elide;
                     }
+                }
+                if item.soundcloud: IconButton {
+                    icon: "M14 3h7v7h-2V6.4L9.7 15.7l-1.4-1.4L17.6 5H14zM4 5h6v2H6v11h11v-4h2v6H4z";
+                    accessible-role: button;
+                    accessible-label: "Abrir en SoundCloud";
+                    accessible-action-default => { State.open-source(i); }
+                    clicked => { State.open-source(i); }
                 }
                 if item.state == 0 || item.state == 4: IconButton {
                     icon: item.state == 4 ? Icons.refresh : Icons.download;
@@ -820,8 +859,9 @@ component MiniPlayer inherits Rectangle {
         height: parent.height - 8px;
         border-radius: 12px * Palette.round;
         clip: true;
-        background: Palette.tint(State.now-tint);
+        background: Palette.skin ? Palette.lcd : Palette.tint(State.now-tint);
         animate background { duration: 500ms; }
+        if Palette.skin: Bevel { sunken: true; }
         TouchArea {
             clicked => { root.open(); }
         }
@@ -829,7 +869,23 @@ component MiniPlayer inherits Rectangle {
             padding-left: 8px;
             padding-right: 4px;
             spacing: 10px;
-            Cover {
+            if Palette.skin: VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                Text {
+                    text: State.position-text;
+                    color: Palette.lcd-text;
+                    font-family: Palette.lcd-font;
+                    font-size: 26px;
+                    horizontal-alignment: center;
+                }
+                Spectrum {
+                    width: 56px;
+                    height: 16px;
+                    active: State.playing;
+                }
+            }
+            if !Palette.skin: Cover {
                 width: 46px;
                 height: 46px;
                 y: (parent.height - self.height) / 2;
@@ -842,14 +898,15 @@ component MiniPlayer inherits Rectangle {
                 spacing: 2px;
                 Text {
                     text: State.now-title;
-                    color: Palette.text;
-                    font-size: 14px;
+                    color: Palette.skin ? Palette.lcd-text : Palette.text;
+                    font-family: Palette.skin ? Palette.lcd-font : "";
+                    font-size: Palette.skin ? 19px : 14px;
                     font-weight: 700;
                     overflow: elide;
                 }
                 Text {
                     text: State.now-artist;
-                    color: Palette.muted;
+                    color: Palette.skin ? Palette.lcd-text.with-alpha(0.7) : Palette.muted;
                     font-size: 12px;
                     overflow: elide;
                 }
@@ -893,6 +950,27 @@ component PlayerControls inherits VerticalLayout {
     in property <bool> compact;
     alignment: center;
     spacing: compact ? 4px : 12px;
+    if Palette.skin: Rectangle {
+        height: root.compact ? 48px : 64px;
+        background: Palette.lcd;
+        Bevel { sunken: true; }
+        Text {
+            x: 14px;
+            text: State.position-text;
+            color: Palette.lcd-text;
+            font-family: Palette.lcd-font;
+            font-size: root.compact ? 34px : 46px;
+            vertical-alignment: center;
+        }
+        Spectrum {
+            x: parent.width * 0.45;
+            y: 10px;
+            width: parent.width * 0.55 - 14px;
+            height: parent.height - 20px;
+            bars: 20;
+            active: State.playing;
+        }
+    }
     HorizontalLayout {
         spacing: 8px;
         VerticalLayout {
@@ -1019,8 +1097,9 @@ component FullPlayer inherits Rectangle {
     in property <length> left-inset;
     in property <length> right-inset;
     property <bool> landscape: self.width > self.height * 1.1;
-    background: @linear-gradient(180deg, Palette.tint(State.now-tint) 0%, Palette.tint-deep(State.now-tint) 55%, Palette.bg 100%);
+    background: Palette.skin ? Palette.backdrop : @linear-gradient(180deg, Palette.tint(State.now-tint) 0%, Palette.tint-deep(State.now-tint) 55%, Palette.bg 100%);
     TouchArea { }
+    if Palette.skin: Decor { }
     VerticalLayout {
         padding-top: root.top-inset + 8px;
         padding-bottom: root.bottom-inset + 16px;
@@ -1176,11 +1255,12 @@ component Sheet inherits Rectangle {
         x: (parent.width - self.width) / 2;
         y: root.wide ? (parent.height - self.height) / 2 : parent.height - self.height;
         background: Palette.surface;
-        border-top-left-radius: 20px;
-        border-top-right-radius: 20px;
-        border-bottom-left-radius: root.wide ? 20px : 0px;
-        border-bottom-right-radius: root.wide ? 20px : 0px;
+        border-top-left-radius: 20px * Palette.round;
+        border-top-right-radius: 20px * Palette.round;
+        border-bottom-left-radius: root.wide ? 20px * Palette.round : 0px;
+        border-bottom-right-radius: root.wide ? 20px * Palette.round : 0px;
         clip: true;
+        if Palette.skin: Bevel { depth: 3px; }
         TouchArea { }
         VerticalLayout {
             padding-top: 10px;
@@ -1284,6 +1364,14 @@ component NavItem inherits Rectangle {
     in property <bool> active;
     in property <int> badge;
     callback clicked();
+    if Palette.skin: Rectangle {
+        x: 2px;
+        y: 2px;
+        width: parent.width - 4px;
+        height: parent.height - 4px;
+        background: root.active ? Palette.surface-3 : Palette.surface-2;
+        Bevel { sunken: root.active; }
+    }
     TouchArea {
         clicked => { root.clicked(); }
     }
@@ -1296,7 +1384,7 @@ component NavItem inherits Rectangle {
                 width: root.active ? 60px : 30px;
                 height: 30px;
                 border-radius: 15px * Palette.round;
-                background: root.active ? Palette.accent-soft : transparent;
+                background: root.active && !Palette.skin ? Palette.accent-soft : transparent;
                 animate width, background { duration: 180ms; }
             }
             Icon {
@@ -1388,8 +1476,10 @@ export component AppWindow inherits Window {
         }
         VerticalLayout {
             padding-top: root.top-inset;
+            if Palette.skin: TitleStrip { text: "TEIN · " + Palette.name; }
             Rectangle {
                 vertical-stretch: 1;
+                if Palette.skin: Bevel { sunken: true; }
                 if root.current-tab == 0: LibraryPage { wide: root.wide; }
                 if root.current-tab == 1: SearchPage { wide: root.wide; }
                 if root.current-tab == 2: DownloadsPage { wide: root.wide; }
@@ -1485,6 +1575,7 @@ export component AppWindow inherits Window {
             height: min(State.edit-mode == 0 ? 330px : State.edit-mode == 1 ? 260px : 190px, parent.height - root.top-inset - root.bottom-inset - 16px);
             background: Palette.surface;
             border-radius: 16px * Palette.round;
+            if Palette.skin: Bevel { depth: 3px; }
             VerticalLayout {
                 padding: 16px;
                 spacing: 8px;

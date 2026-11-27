@@ -1,3 +1,4 @@
+import "fonts/VT323-Regular.ttf";
 import { Palette, Icons } from "theme.slint";
 import { LineEdit } from "std-widgets.slint";
 
@@ -11,6 +12,55 @@ export component Icon inherits Path {
     viewbox-height: 24;
 }
 
+// Raised or sunken 3D edge for skins. Fills its parent.
+export component Bevel inherits Rectangle {
+    in property <bool> sunken;
+    in property <length> depth: 2px;
+    property <color> a: sunken ? Palette.lo : Palette.hi;
+    property <color> b: sunken ? Palette.hi : Palette.lo;
+    Rectangle { x: 0; y: 0; height: root.depth; background: root.a; }
+    Rectangle { x: 0; y: 0; width: root.depth; background: root.a; }
+    Rectangle { x: 0; y: root.height - root.depth; height: root.depth; background: root.b; }
+    Rectangle { x: root.width - root.depth; y: 0; width: root.depth; background: root.b; }
+}
+
+/// Spectrum-analyser bars for skin displays.
+export component Spectrum inherits Rectangle {
+    in property <bool> active;
+    in property <int> bars: 12;
+    for i in root.bars: Rectangle {
+        x: i * root.width / root.bars;
+        width: root.width / root.bars - 2px;
+        background: @linear-gradient(0deg, Palette.lcd-text 0%, Palette.accent 100%);
+        height: root.active ? root.height * (0.15 + 0.85 * abs(sin((animation-tick() / 1ms * (0.25 + mod(i * 7, 5) * 0.07) + i * 53) * 1deg))) : 2px;
+        y: root.height - self.height;
+    }
+}
+
+/// Skin title strip with grip lines, like a classic player window.
+export component TitleStrip inherits Rectangle {
+    in property <string> text: "TEIN";
+    height: 26px;
+    background: Palette.surface-2;
+    Bevel { }
+    for side in [0, 1]: Rectangle {
+        x: side == 0 ? 8px : root.width / 2 + label.width / 2 + 8px;
+        width: root.width / 2 - label.width / 2 - 16px;
+        for l in 3: Rectangle {
+            y: 8px + l * 4px;
+            height: 2px;
+            background: l == 1 ? Palette.lo : Palette.hi;
+        }
+    }
+    label := Text {
+        text: root.text;
+        color: Palette.text;
+        font-family: Palette.lcd-font;
+        font-size: 20px;
+        letter-spacing: 3px;
+    }
+}
+
 export component IconButton inherits Rectangle {
     in property <string> icon;
     in property <length> icon-size: 24px;
@@ -21,8 +71,9 @@ export component IconButton inherits Rectangle {
     width: 44px;
     height: 44px;
     border-radius: self.width / 2 * Palette.round;
-    background: filled ? (ta.pressed ? root.fill.darker(20%) : root.fill) : (ta.pressed ? Palette.overlay : transparent);
+    background: filled ? (ta.pressed ? root.fill.darker(20%) : root.fill) : Palette.skin ? (ta.pressed ? Palette.surface-3 : Palette.surface-2) : (ta.pressed ? Palette.overlay : transparent);
     animate background { duration: 120ms; }
+    if Palette.skin: Bevel { sunken: ta.pressed; }
     Icon {
         commands: root.icon;
         tint: root.tint;
@@ -73,6 +124,7 @@ export component Chip inherits Rectangle {
     background: active ? Palette.text : (ta.pressed ? Palette.surface-3 : Palette.surface-2);
     animate background { duration: 160ms; }
     if Palette.gloss: Gloss { radius: root.border-radius; }
+    if Palette.skin: Bevel { sunken: ta.pressed || root.active; }
     HorizontalLayout {
         padding-left: 16px;
         padding-right: 16px;
@@ -99,6 +151,7 @@ export component PillButton inherits Rectangle {
     background: primary ? (ta.pressed ? Palette.accent.darker(20%) : Palette.accent) : (ta.pressed ? Palette.surface-3 : Palette.surface-2);
     animate background { duration: 120ms; }
     if Palette.gloss: Gloss { radius: root.border-radius; }
+    if Palette.skin: Bevel { sunken: ta.pressed; }
     HorizontalLayout {
         padding-left: 14px;
         padding-right: 18px;
@@ -171,25 +224,27 @@ export component Bar inherits Rectangle {
     height: 32px;
     Rectangle {
         y: (parent.height - self.height) / 2;
-        height: ta.pressed ? 6px : 4px;
+        height: Palette.skin ? 10px : ta.pressed ? 6px : 4px;
         border-radius: self.height / 2 * Palette.round;
-        background: Palette.overlay;
+        background: Palette.skin ? Palette.lcd : Palette.overlay;
+        if Palette.skin: Bevel { sunken: true; depth: 1px; }
     }
     Rectangle {
         x: 0;
         y: (parent.height - self.height) / 2;
         width: parent.width * root.frac;
-        height: ta.pressed ? 6px : 4px;
+        height: Palette.skin ? 6px : ta.pressed ? 6px : 4px;
         border-radius: self.height / 2 * Palette.round;
         background: root.fill;
     }
     Rectangle {
         x: parent.width * root.frac - self.width / 2;
-        width: ta.pressed ? 18px : 12px;
-        height: self.width;
+        width: Palette.skin ? 14px : ta.pressed ? 18px : 12px;
+        height: Palette.skin ? 22px : self.width;
         border-radius: self.width / 2 * Palette.round;
-        background: Palette.text;
+        background: Palette.skin ? Palette.surface-3 : Palette.text;
         animate width { duration: 100ms; }
+        if Palette.skin: Bevel { sunken: ta.pressed; }
     }
     ta := TouchArea {
         pointer-event(event) => {
@@ -227,7 +282,7 @@ export component ListRow inherits Rectangle {
     callback clicked();
     callback more();
     height: 66px;
-    background: ta.pressed ? Palette.stroke : transparent;
+    background: ta.pressed ? Palette.stroke : Palette.skin && root.highlighted ? Palette.accent-soft : transparent;
     ta := TouchArea {
         clicked => { root.clicked(); }
     }

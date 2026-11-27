@@ -16,7 +16,22 @@ read -r -a ABIS <<< "${ABIS[*]}"
 APP=android/app/src/main
 OUT=target/apk
 KEYSTORE="${TEIN_KEYSTORE:-android/tein-release.jks}"
-KS_PASS="${TEIN_KEYSTORE_PASSWORD:-tein123}"
+KEY_ALIAS="${TEIN_KEY_ALIAS:-tein}"
+if [ -f "$KEYSTORE" ] || [ -n "${TEIN_KEYSTORE:-}" ]; then
+    test -f "$KEYSTORE" || { echo "No existe el almacén de firma indicado" >&2; exit 1; }
+    : "${TEIN_KEYSTORE_PASSWORD:?Falta la contraseña del almacén de firma}"
+else
+    KEYSTORE="$HOME/.android/debug.keystore"
+    KEY_ALIAS=androiddebugkey
+    export TEIN_KEYSTORE_PASSWORD=android
+    if [ ! -f "$KEYSTORE" ]; then
+        mkdir -p "$(dirname "$KEYSTORE")"
+        (umask 077; keytool -genkeypair -keystore "$KEYSTORE" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 \
+            -validity 10000 -storepass:env TEIN_KEYSTORE_PASSWORD -keypass:env TEIN_KEYSTORE_PASSWORD -dname "CN=Android Debug")
+    fi
+    echo "Firma de desarrollo: este APK no actualiza una release oficial" >&2
+fi
+export TEIN_KEY_PASSWORD="${TEIN_KEY_PASSWORD:-$TEIN_KEYSTORE_PASSWORD}"
 rm -rf "$OUT" && mkdir -p "$OUT"/{res,gen,classes,lib}
 
 echo "==> Rust (${ABIS[*]})"
@@ -51,7 +66,7 @@ sed 's|<manifest |<manifest package="com.tein.app" |' "$APP/AndroidManifest.xml"
 "$BT/aapt2" compile --dir "$APP/res" -o "$OUT/res.zip"
 "$BT/aapt2" link -o "$OUT/base.apk" -I "$PLATFORM_JAR" --manifest "$OUT/AndroidManifest.xml" \
     --java "$OUT/gen" --min-sdk-version 26 --target-sdk-version 34 \
-    --version-code 7 --version-name 1.3.0 "$OUT/res.zip"
+    --version-code 8 --version-name 1.4.0 "$OUT/res.zip"
 
 echo "==> Java"
 javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$PLATFORM_JAR:$BT/core-lambda-stubs.jar" \
@@ -61,14 +76,10 @@ javac -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$PLATFORM_JAR:
 echo "==> Empaquetado"
 cp "$OUT/base.apk" "$OUT/unaligned.apk"
 (cd "$OUT" && zip -q unaligned.apk classes.dex)
-# Native libraries stay uncompressed so Android can map them directly (extractNativeLibs=false).
-(cd "$OUT" && zip -q -0 -r unaligned.apk lib)
+# Android extracts only the device ABI at install time.
+(cd "$OUT" && zip -q -9 -r unaligned.apk lib)
 "$BT/zipalign" -f -p 4 "$OUT/unaligned.apk" "$OUT/aligned.apk"
 
-if [ ! -f "$KEYSTORE" ]; then
-    keytool -genkeypair -keystore "$KEYSTORE" -alias tein -keyalg RSA -keysize 2048 -validity 10000 \
-        -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=Tein" >/dev/null 2>&1
-fi
-"$BT/apksigner" sign --ks "$KEYSTORE" --ks-pass "pass:$KS_PASS" --ks-key-alias "${TEIN_KEY_ALIAS:-tein}" \
+"$BT/apksigner" sign --ks "$KEYSTORE" --ks-pass env:TEIN_KEYSTORE_PASSWORD --key-pass env:TEIN_KEY_PASSWORD --ks-key-alias "$KEY_ALIAS" \
     --out "$OUT/tein.apk" "$OUT/aligned.apk"
 ls -lh "$OUT/tein.apk"

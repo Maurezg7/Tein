@@ -31,6 +31,11 @@ pub fn can_write_all() -> bool {
 #[cfg(not(target_os = "android"))]
 pub fn ask_write_all() {}
 
+#[cfg(not(target_os = "android"))]
+pub fn open_soundcloud(_url: &str) -> bool {
+    false
+}
+
 /// Opens the system folder picker; returns false when there is none.
 #[cfg(not(target_os = "android"))]
 pub fn pick_folder() -> bool {
@@ -166,6 +171,20 @@ mod android {
         call_void("pickFolder")
     }
 
+    pub fn open_soundcloud(url: &str) -> bool {
+        with_bridge(|env, class| {
+            let url = env.new_string(url)?;
+            env.call_static_method(
+                class,
+                "openSoundCloud",
+                "(Ljava/lang/String;)Z",
+                &[JValue::Object(&url)],
+            )?
+            .z()
+        })
+        .unwrap_or(false)
+    }
+
     pub fn pick_image() -> bool {
         call_void("pickImage")
     }
@@ -190,8 +209,8 @@ mod android {
 
 #[cfg(target_os = "android")]
 pub use android::{
-    ask_write_all, can_write_all, init_bridge, now_playing, pick_folder, pick_image, poll_action,
-    sd_card, take_picked,
+    ask_write_all, can_write_all, init_bridge, now_playing, open_soundcloud, pick_folder,
+    pick_image, poll_action, sd_card, take_picked,
 };
 
 #[cfg(test)]

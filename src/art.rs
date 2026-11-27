@@ -9,6 +9,18 @@ const SIZE: u32 = 112;
 
 pub type Thumb = SharedPixelBuffer<Rgba8Pixel>;
 
+pub fn decode(data: &[u8]) -> Option<image::DynamicImage> {
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(data))
+        .with_guessed_format()
+        .ok()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(8192);
+    limits.max_image_height = Some(8192);
+    limits.max_alloc = Some(64 * 1024 * 1024);
+    reader.limits(limits);
+    reader.decode().ok()
+}
+
 pub fn key(t: &Track) -> String {
     format!("{}\0{}", t.path, t.mtime)
 }
@@ -30,8 +42,8 @@ pub fn load(key: &str, path: &str) -> Option<Thumb> {
     }
     let img = crate::player::cached_cover(path)
         .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| image::load_from_memory(&b).ok())
-        .or_else(|| image::load_from_memory(&crate::library::cover(path)?).ok())?;
+        .and_then(|b| decode(&b))
+        .or_else(|| decode(&crate::library::cover(path)?))?;
     let small = img.resize_to_fill(SIZE, SIZE, FilterType::Triangle);
     let _ = std::fs::create_dir_all(jpg.parent()?);
     let _ = small
@@ -42,7 +54,7 @@ pub fn load(key: &str, path: &str) -> Option<Thumb> {
 
 /// Square thumbnail from encoded image bytes (e.g. a YouTube preview).
 pub fn from_bytes(data: &[u8]) -> Option<Thumb> {
-    let img = image::load_from_memory(data).ok()?;
+    let img = decode(data)?;
     let side = img.width().min(img.height());
     let img = img.crop_imm(
         (img.width() - side) / 2,

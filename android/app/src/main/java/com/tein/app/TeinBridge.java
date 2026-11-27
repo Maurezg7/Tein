@@ -51,6 +51,18 @@ public final class TeinBridge {
         return a == null ? 0 : a;
     }
 
+    public static boolean openSoundCloud(String link) {
+        android.net.Uri uri = android.net.Uri.parse(link);
+        MainActivity a = activity.get();
+        if (a == null || !"https".equals(uri.getScheme()) || !"soundcloud.com".equals(uri.getHost())) return false;
+        try {
+            a.startActivity(new Intent(Intent.ACTION_VIEW, uri));
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     public static void update(String newTitle, String newArtist, boolean isPlaying, long pos, long duration) {
         MAIN.post(() -> {
             title = newTitle;

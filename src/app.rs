@@ -8,7 +8,7 @@ use crate::{AppWindow, DownloadItem, GroupItem, OnlineItem, Palette, State, Trac
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 
 static UI_ATTACHED: AtomicBool = AtomicBool::new(false);
 
@@ -59,6 +59,43 @@ struct DownloadEntry {
 }
 
 #[derive(Default)]
+struct Latest<T> {
+    busy: bool,
+    pending: Option<T>,
+}
+
+impl<T> Latest<T> {
+    fn submit(&mut self, work: T) -> Option<T> {
+        if self.busy {
+            self.pending = Some(work);
+            return None;
+        }
+        self.busy = true;
+        Some(work)
+    }
+    fn finish(&mut self) -> Option<T> {
+        let next = self.pending.take();
+        self.busy = next.is_some();
+        next
+    }
+}
+
+type SearchJob = (u64, String, i32);
+
+#[cfg(test)]
+#[test]
+fn active_work_keeps_only_the_latest_pending_item() {
+    let mut slot = Latest::default();
+    assert_eq!(slot.submit(1), Some(1));
+    assert_eq!(slot.submit(2), None);
+    assert_eq!(slot.submit(3), None);
+    assert_eq!(slot.finish(), Some(3));
+    assert_eq!(slot.finish(), None);
+    assert_eq!(slot.submit(4), Some(4));
+}
+use crate::download::QUEUE_LIMIT as MAX_DOWNLOADS;
+
+#[derive(Default)]
 struct Core {
     library: Vec<Track>,
     playlists: Vec<Playlist>,
@@ -70,6 +107,11 @@ struct Core {
     online: Vec<(OnlineTrack, i32)>,
     online_collection: Option<String>,
     search_gen: u64,
+    searches: Latest<SearchJob>,
+    last_search: Option<std::time::Instant>,
+    web_images: Latest<u64>,
+    metadata_busy: bool,
+    thumb_generation: std::sync::Arc<std::sync::atomic::AtomicU64>,
     downloads: Vec<DownloadEntry>,
     next_id: u64,
     menu: Vec<MenuAction>,
@@ -96,7 +138,7 @@ thread_local! {
     static CORE: RefCell<Core> = RefCell::new(Core::default());
     static UI: RefCell<Option<slint::Weak<AppWindow>>> = const { RefCell::new(None) };
     static PLAYER: RefCell<Option<PlayerHandle>> = const { RefCell::new(None) };
-    static DOWNLOADER: RefCell<Option<Sender<Job>>> = const { RefCell::new(None) };
+    static DOWNLOADER: RefCell<Option<SyncSender<Job>>> = const { RefCell::new(None) };
 }
 
 fn with(f: impl FnOnce(&AppWindow, &mut Core)) {
@@ -388,6 +430,22 @@ fn bind(ui: &AppWindow) {
     });
 
     st.on_online_search(|q| search(q.to_string()));
+    st.on_open_source(|i| {
+        with(|ui, core| {
+            if let Some((
+                OnlineTrack {
+                    source: online::Source::SoundCloud { url, .. },
+                    ..
+                },
+                _,
+            )) = core.online.get(i as usize)
+            {
+                if !crate::platform::open_soundcloud(url) {
+                    toast(ui, core, "No se pudo abrir SoundCloud".into());
+                }
+            }
+        })
+    });
     st.on_online_download(|i| with(|ui, core| start_downloads(ui, core, vec![i as usize])));
     st.on_online_download_all(|| {
         with(|ui, core| {
@@ -737,39 +795,54 @@ fn forget_art(core: &mut Core, key: &str) {
     core.thumb_tried.remove(key);
 }
 
-/// Fetches small YouTube previews for the online results.
-fn request_web_thumbs(core: &Core, generation: u64) {
-    let ids: Vec<String> = core
+/// Fetches small previews for the online results.
+fn request_web_thumbs(core: &mut Core, generation: u64) {
+    if core.web_images.submit(generation).is_some() {
+        load_web_thumbs(core, generation);
+    }
+}
+
+fn load_web_thumbs(core: &mut Core, generation: u64) {
+    let current = core.thumb_generation.clone();
+    let ids: Vec<(String, String)> = core
         .online
         .iter()
-        .filter_map(|(t, _)| match &t.source {
-            online::Source::YouTube(id) if !core.web_thumbs.contains_key(id) => Some(id.clone()),
-            _ => None,
-        })
+        .filter_map(|(t, _)| t.thumb())
+        .filter(|(k, _)| !core.web_thumbs.contains_key(k))
         .take(60)
         .collect();
     if ids.is_empty() {
+        core.web_images.finish();
         return;
     }
     std::thread::spawn(move || {
         for chunk in ids.chunks(6) {
+            if current.load(Ordering::Relaxed) != generation {
+                break;
+            }
             let got: Vec<_> = chunk
                 .iter()
-                .filter_map(|id| {
-                    let url = format!("https://i.ytimg.com/vi/{id}/mqdefault.jpg");
-                    let data = crate::net::get_bytes(&url, "Mozilla/5.0").ok()?;
+                .take_while(|_| current.load(std::sync::atomic::Ordering::Relaxed) == generation)
+                .filter_map(|(id, url)| {
+                    let data = crate::net::get_bytes(url, "Mozilla/5.0").ok()?;
                     Some((id.clone(), art::from_bytes(&data)?))
                 })
                 .collect();
             post(move |ui, core| {
+                if core.search_gen != generation {
+                    return;
+                }
                 for (id, t) in got {
                     core.web_thumbs.insert(id, slint::Image::from_rgba8(t));
                 }
-                if core.search_gen == generation {
-                    refresh_online(ui, core);
-                }
+                refresh_online(ui, core);
             });
         }
+        post(|_, core| {
+            if let Some(next) = core.web_images.finish() {
+                load_web_thumbs(core, next);
+            }
+        });
     });
 }
 
@@ -1139,6 +1212,11 @@ fn fill_meta(ui: &AppWindow, core: &mut Core, tracks: Vec<Track>) {
     if tracks.is_empty() {
         return;
     }
+    if core.metadata_busy {
+        toast(ui, core, "Ya se están completando datos".into());
+        return;
+    }
+    core.metadata_busy = true;
     toast(ui, core, "Buscando datos…".into());
     std::thread::spawn(move || {
         let total = tracks.len();
@@ -1162,8 +1240,11 @@ fn fill_meta(ui: &AppWindow, core: &mut Core, tracks: Vec<Track>) {
                 });
             }
         }
-        let blocked = ok < total && !crate::platform::can_write_all();
+        let blocked = ok < total
+            && !crate::platform::can_write_all()
+            && last_err.to_ascii_lowercase().contains("permission denied");
         post(move |ui, core| {
+            core.metadata_busy = false;
             if blocked {
                 toast(
                     ui,
@@ -1263,14 +1344,29 @@ fn on_player(ui: &AppWindow, core: &mut Core, event: Event) {
 }
 
 fn search(query: String) {
-    let query = query.trim().to_string();
+    let query = query.trim();
     if query.is_empty() {
         return;
     }
     with(|ui, core| {
+        if query.len() > 4096 {
+            toast(
+                ui,
+                core,
+                "El enlace o la búsqueda es demasiado largo".into(),
+            );
+            return;
+        }
         core.search_gen += 1;
         let generation = core.search_gen;
+        core.thumb_generation
+            .store(generation, std::sync::atomic::Ordering::Relaxed);
+        core.web_thumbs.clear();
+        core.online.clear();
+        core.online_collection = None;
+        refresh_online(ui, core);
         let st = ui.global::<State>();
+        let provider = st.get_online_source();
         st.set_online_busy(true);
         st.set_online_status(
             if query.contains("://") || query.starts_with("spotify:") {
@@ -1280,41 +1376,62 @@ fn search(query: String) {
             }
             .into(),
         );
-        std::thread::spawn(move || {
-            let result = online::resolve(&query);
-            post(move |ui, core| {
-                if core.search_gen != generation {
-                    return;
-                }
-                let st = ui.global::<State>();
-                st.set_online_busy(false);
-                match result {
-                    Ok(res) => {
-                        let n = res.tracks.len();
-                        st.set_online_status(if n == 0 {
-                            "Sin resultados".into()
-                        } else if res.collection.is_some() {
-                            format!(
-                                "{} · {n} {}",
-                                res.label,
-                                if n == 1 { "canción" } else { "canciones" }
-                            )
-                            .into()
+        if let Some(job) = core.searches.submit((generation, query.into(), provider)) {
+            run_search(core, job);
+        }
+    });
+}
+
+fn run_search(core: &mut Core, (generation, query, provider): SearchJob) {
+    let now = std::time::Instant::now();
+    let start = core
+        .last_search
+        .map_or(now, |t| now.max(t + std::time::Duration::from_secs(1)));
+    core.last_search = Some(start);
+    std::thread::spawn(move || {
+        std::thread::sleep(start.saturating_duration_since(std::time::Instant::now()));
+        let result = online::resolve_in(&query, provider);
+        post(move |ui, core| {
+            if let Some(job) = core.searches.finish() {
+                run_search(core, job);
+                return;
+            }
+            if core.search_gen != generation {
+                return;
+            }
+            let st = ui.global::<State>();
+            st.set_online_busy(false);
+            match result {
+                Ok(res) => {
+                    let n = res.tracks.len();
+                    st.set_online_status(if n == 0 {
+                        if provider == 2 {
+                            "Sin descargas públicas compatibles en Audius"
                         } else {
-                            res.label.into()
-                        });
-                        core.online_collection = res.collection;
-                        core.online = res.tracks.into_iter().map(|t| (t, 0)).collect();
-                        request_web_thumbs(core, generation);
-                    }
-                    Err(e) => {
-                        st.set_online_status(format!("Error: {e}").into());
-                        core.online.clear();
-                        core.online_collection = None;
-                    }
+                            "Sin resultados"
+                        }
+                        .into()
+                    } else if res.collection.is_some() {
+                        format!(
+                            "{} · {n} {}",
+                            res.label,
+                            if n == 1 { "canción" } else { "canciones" }
+                        )
+                        .into()
+                    } else {
+                        res.label.into()
+                    });
+                    core.online_collection = res.collection;
+                    core.online = res.tracks.into_iter().map(|t| (t, 0)).collect();
+                    request_web_thumbs(core, generation);
                 }
-                refresh_online(ui, core);
-            });
+                Err(e) => {
+                    st.set_online_status(format!("Error: {e}").into());
+                    core.online.clear();
+                    core.online_collection = None;
+                }
+            }
+            refresh_online(ui, core);
         });
     });
 }
@@ -1323,21 +1440,26 @@ fn refresh_online(ui: &AppWindow, core: &Core) {
     let items = core
         .online
         .iter()
-        .map(|(t, state)| OnlineItem {
-            art: match &t.source {
-                online::Source::YouTube(id) => core.web_thumbs.get(id).cloned().unwrap_or_default(),
-                online::Source::Match => Default::default(),
-            },
-            has_art: matches!(&t.source, online::Source::YouTube(id) if core.web_thumbs.contains_key(id)),
-            title: t.title.clone().into(),
-            subtitle: format!(
-                "{} · {} · {}",
-                t.artist,
-                online::format_duration(t.duration_secs),
-                t.origin
-            )
-            .into(),
-            state: *state,
+        .map(|(t, state)| {
+            let thumb = t.thumb_key().and_then(|key| core.web_thumbs.get(key));
+            OnlineItem {
+                art: thumb.cloned().unwrap_or_default(),
+                has_art: thumb.is_some(),
+                soundcloud: matches!(&t.source, online::Source::SoundCloud { .. }),
+                title: t.title.clone().into(),
+                subtitle: if t.duration_secs == 0 {
+                    format!("{} · {}", t.artist, t.origin)
+                } else {
+                    format!(
+                        "{} · {} · {}",
+                        t.artist,
+                        online::format_duration(t.duration_secs),
+                        t.origin
+                    )
+                }
+                .into(),
+                state: *state,
+            }
         })
         .collect();
     ui.global::<State>().set_online(model(items));
@@ -1406,9 +1528,7 @@ fn apply_download_dir(ui: &AppWindow, core: &mut Core, dir: std::path::PathBuf) 
     toast(ui, core, format!("Descargas en {label}"));
     if let Some((generation, wanted)) = core.pending_downloads.take() {
         if generation == core.search_gen {
-            for i in wanted {
-                enqueue_download(ui, core, i);
-            }
+            start_downloads(ui, core, wanted);
         }
     }
     let _ = slint::invoke_from_event_loop(rescan);
@@ -1416,14 +1536,36 @@ fn apply_download_dir(ui: &AppWindow, core: &mut Core, dir: std::path::PathBuf) 
 
 /// Queues the downloads, asking first where to save them if that was never chosen.
 fn start_downloads(ui: &AppWindow, core: &mut Core, wanted: Vec<usize>) {
+    let slots = MAX_DOWNLOADS.saturating_sub(core.downloads.iter().filter(|d| d.state < 2).count());
+    if wanted.len() > slots {
+        toast(
+            ui,
+            core,
+            format!("Hay lugar para {slots} descargas más. El resto queda disponible en Buscar."),
+        );
+    }
+    let wanted: Vec<_> = wanted.into_iter().take(slots).collect();
+    if wanted.is_empty() {
+        return;
+    }
     if core.prefs.download_dir.is_none() {
         core.pending_downloads = Some((core.search_gen, wanted));
         choose_folder(ui, core);
         return;
     }
     for i in wanted {
-        enqueue_download(ui, core, i);
+        enqueue_download(core, i);
     }
+    let mut history = 0;
+    core.downloads.retain(|d| {
+        if d.state < 2 {
+            return true;
+        }
+        history += 1;
+        history <= MAX_DOWNLOADS
+    });
+    refresh_online(ui, core);
+    refresh_downloads(ui, core);
 }
 
 fn group_tracks(core: &Core, view: i32, key: &str) -> Vec<Track> {
@@ -1492,8 +1634,8 @@ fn pick_cover(ui: &AppWindow, core: &mut Core, target: CoverTarget) {
 /// Square JPEG, at most `side` pixels wide, from any picked picture.
 fn square_jpeg(path: &str, side: u32) -> Result<Vec<u8>, String> {
     let data = std::fs::read(path).map_err(|e| e.to_string())?;
-    let img = image::load_from_memory(&data)
-        .map_err(|_| "Formato de imagen no compatible: usá JPG, PNG o WebP".to_string())?;
+    let img = crate::art::decode(&data)
+        .ok_or("Imagen demasiado grande o incompatible: probá con un JPG, PNG o WebP más chico")?;
     let edge = img.width().min(img.height());
     let img = img.crop_imm(
         (img.width() - edge) / 2,
@@ -1654,7 +1796,7 @@ fn rename_group(core: &mut Core, view: i32, old: &str, new: &str) {
     }
 }
 
-fn enqueue_download(ui: &AppWindow, core: &mut Core, i: usize) {
+fn enqueue_download(core: &mut Core, i: usize) {
     let Some((track, state)) = core.online.get_mut(i) else {
         return;
     };
@@ -1681,13 +1823,16 @@ fn enqueue_download(ui: &AppWindow, core: &mut Core, i: usize) {
             playlist: folder.clone(),
         },
     );
-    DOWNLOADER.with(|d| {
-        if let Some(tx) = d.borrow().as_ref() {
-            let _ = tx.send(Job { id, track, folder });
-        }
+    let sent = DOWNLOADER.with(|d| {
+        d.borrow()
+            .as_ref()
+            .is_some_and(|tx| tx.try_send(Job { id, track, folder }).is_ok())
     });
-    refresh_online(ui, core);
-    refresh_downloads(ui, core);
+    if !sent {
+        *state = 4;
+        core.downloads[0].state = 3;
+        core.downloads[0].status = "Cola no disponible: reintentá más tarde".into();
+    }
 }
 
 fn on_download(ui: &AppWindow, core: &mut Core, update: Update) {

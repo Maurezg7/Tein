@@ -3,7 +3,7 @@ use crate::net::{self, Result};
 use serde_json::Value;
 
 pub fn is_link(s: &str) -> bool {
-    s.contains("music.apple.com/") || s.contains("itunes.apple.com/")
+    s.starts_with("https://music.apple.com/") || s.starts_with("https://itunes.apple.com/")
 }
 
 /// Uses the public iTunes lookup API (and the playlist page JSON-LD) to read metadata.

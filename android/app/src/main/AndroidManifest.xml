@@ -18,7 +18,7 @@
         android:theme="@style/TeinTheme"
         android:hasCode="true"
         android:requestLegacyExternalStorage="true"
-        android:extractNativeLibs="false">
+        android:extractNativeLibs="true">
 
         <activity
             android:name=".MainActivity"

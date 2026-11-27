@@ -10,7 +10,15 @@ const WEB_VERSION: &str = "2.20240726.00.00";
 const CHUNK: u64 = 4 * 1024 * 1024;
 
 pub fn is_link(s: &str) -> bool {
-    s.contains("youtube.com/") || s.contains("youtu.be/")
+    [
+        "https://www.youtube.com/",
+        "https://youtube.com/",
+        "https://m.youtube.com/",
+        "https://music.youtube.com/",
+        "https://youtu.be/",
+    ]
+    .iter()
+    .any(|prefix| s.starts_with(prefix))
 }
 
 fn web_context() -> Value {
@@ -401,6 +409,9 @@ pub fn download(
     let mut done: u64 = 0;
     let mut buf = vec![0u8; 64 * 1024];
     loop {
+        if total > net::MAX_AUDIO {
+            return Err("El audio supera los 512 MiB".into());
+        }
         let end = if total > 0 {
             (done + CHUNK).min(total) - 1
         } else {
@@ -439,6 +450,9 @@ pub fn download(
             if n == 0 {
                 break;
             }
+            if done + n as u64 > net::MAX_AUDIO || (total > 0 && done + n as u64 > total) {
+                return Err("El audio supera el tamaño esperado".into());
+            }
             file.write_all(&buf[..n])
                 .map_err(|e| format!("Error escribiendo: {e}"))?;
             got += n as u64;
@@ -452,8 +466,8 @@ pub fn download(
         }
     }
     file.flush().map_err(|e| e.to_string())?;
-    if done == 0 {
-        return Err("La descarga quedó vacía".into());
+    if done == 0 || (total > 0 && done != total) {
+        return Err("La descarga quedó vacía o incompleta".into());
     }
     Ok(())
 }
