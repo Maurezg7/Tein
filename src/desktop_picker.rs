@@ -16,7 +16,7 @@ enum Dialog {
 
 static DIALOG: Mutex<Dialog> = Mutex::new(Dialog::Idle);
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 fn dialog(image: bool) -> std::io::Result<impl FnOnce() -> Option<PathBuf>> {
     use std::os::unix::ffi::OsStringExt;
     use std::process::{Command, Stdio};
@@ -45,7 +45,7 @@ fn dialog(image: bool) -> std::io::Result<impl FnOnce() -> Option<PathBuf>> {
     })
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn dialog(image: bool) -> std::io::Result<impl FnOnce() -> Option<PathBuf>> {
     Ok(move || {
         let picker = rfd::FileDialog::new();

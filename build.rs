@@ -5,6 +5,9 @@ fn main() {
         // Android's packed relocations work from API 23, below our minimum (26).
         println!("cargo:rustc-link-arg-cdylib=-Wl,--pack-dyn-relocs=android");
     }
-    let config = slint_build::CompilerConfiguration::new().with_style("material-dark".into());
+    let mut config = slint_build::CompilerConfiguration::new().with_style("material-dark".into());
+    if std::env::var("CARGO_CFG_TARGET_VENDOR").as_deref() == Ok("apple") {
+        config = config.embed_resources(slint_build::EmbedResourcesKind::EmbedFiles);
+    }
     slint_build::compile_with_config("ui/app.slint", config).expect("Slint build failed");
 }

@@ -1,0 +1,58 @@
+name: Tein Apple
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/apple.yml', 'packaging/apple/**', 'src/**', 'ui/**', 'Cargo.*', 'build.rs']
+  push:
+    branches: ['devin/*-tein-apple']
+permissions:
+  contents: read
+jobs:
+  mac:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build and package
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          rustup update stable
+          if [[ $ARCH == x86_64 ]]; then rustup target add x86_64-apple-darwin; fi
+          bash packaging/apple/mac.sh "$ARCH"
+      - name: Open app and scan a local track
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -eu
+          temp=$(mktemp -d)
+          export HOME="$temp/home"
+          mkdir -p "$HOME/Music"
+          python3 -c 'import sys,wave; w=wave.open(sys.argv[1],"wb"); w.setparams((1,2,8000,0,"NONE","")); w.writeframes(bytes(16000)); w.close()' "$HOME/Music/Tein-smoke.wav"
+          ditto -x -k target/apple/*/*.zip "$temp"
+          lipo -verify_arch "$ARCH" "$temp/Tein.app/Contents/MacOS/Tein"
+          "$temp/Tein.app/Contents/MacOS/Tein" &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..60}; do
+            kill -0 "$pid"
+            if grep -q Tein-smoke.wav "$HOME/Library/Application Support/tein/library.json" 2>/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tein-macOS-${{ matrix.arch }}
+          path: target/apple/*/*.zip
+          if-no-files-found: error

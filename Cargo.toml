@@ -2,7 +2,7 @@
 name = "tein"
 version = "0.1.0"
 edition = "2024"
-description = "Reproductor de música para Android, Windows y Linux hecho en Rust"
+description = "Reproductor de música multiplataforma hecho en Rust"
 license = "MIT"
 
 [lib]
@@ -31,7 +31,7 @@ slint = { version = "1.19", default-features = false, features = ["backend-winit
 dirs = "6"
 webbrowser = { version = "1", default-features = false }
 
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
 rfd = { version = "0.15", default-features = false }
 
 [target.'cfg(target_os = "android")'.dependencies]
